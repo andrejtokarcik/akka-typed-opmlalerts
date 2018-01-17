@@ -9,13 +9,12 @@ import scala.concurrent.duration._
 import opmlalerts.FeedHandler._
 
 object Main extends App {
-  import scala.concurrent.ExecutionContext.Implicits.global
-
   val poller = pollForNewEntries("http://lorem-rss.herokuapp.com/feed")
   val system: ActorSystem[Poll] = ActorSystem(poller, "single-poller")
 
-  implicit val timeout = Timeout(500.millis)
+  implicit val ec = system.executionContext
   implicit val sched = system.scheduler
+  implicit val timeout = Timeout(500.millis)
   val future: Future[FeedEntry] = system ? (Poll(_))
 
   for {

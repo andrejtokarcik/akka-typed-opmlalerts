@@ -31,9 +31,9 @@ object FeedHandlerBehaviorSpec extends FeedHandlerSpec {
   implicit def feedDSL(feed: URL) = new {
     def fetchSince(sinceStr: String) = {
       val since = parseTime(sinceStr)
-      val testkit = BehaviorTestkit(fetcher(feed, since))
+      val testkit = BehaviorTestkit(pollForNewEntries(feed, since))
       val inbox = TestInbox[Download]()
-      testkit.run(Fetch(inbox.ref))
+      testkit.run(Poll(inbox.ref))
       inbox.receiveAll
     }
   }
@@ -49,7 +49,7 @@ object FeedHandlerBehaviorSpec extends FeedHandlerSpec {
 class FeedHandlerBehaviorSpec extends WordSpec with Matchers {
   import FeedHandlerBehaviorSpec._
 
-  "fetcher (qua behavior)" should {
+  "pollForNewEntries (qua behavior)" should {
 
     "emit a Download per new item" in {
       val received = basicRSSFeed fetchSince "Tue, 16 Jan 2018 02:45:50 GMT"
@@ -91,17 +91,17 @@ class FeedHandlerAsyncSpec extends TestKit(FeedHandlerAsyncSpec.config)
 
   import FeedHandlerAsyncSpec._
 
-  "fetcher (qua actor)" should {
+  "pollForNewEntries (qua actor)" should {
 
     "log a warning on parse failure" in {
       val probe = TestProbe[Download]()
-      val fetcherActor = spawn(fetcher(nonExistentFeed, currentTime))
+      val poller = spawn(pollForNewEntries(nonExistentFeed, currentTime))
 
       val filter = EventFilter.warning(start = "An exception occurred while processing " +
         s"feed '$nonExistentFeed'", occurrences = 1)
       system.eventStream publish TestEvent.Mute(filter)
 
-      fetcherActor ! Fetch(probe.ref)
+      poller ! Poll(probe.ref)
       probe.expectNoMsg(expectTimeout)
       filter.assertDone(expectTimeout)
     }

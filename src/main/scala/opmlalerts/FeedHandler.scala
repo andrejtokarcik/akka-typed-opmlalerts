@@ -10,7 +10,8 @@ import scala.collection.JavaConverters._
 import scala.util.{ Try, Success, Failure }
 
 object FeedHandler {
-  final case class Fetch(replyTo: ActorRef[Download])
+
+  final case class Poll(replyTo: ActorRef[Download])
   final case class Download(url: URL)
 
   lazy val sfi = new SyndFeedInput
@@ -23,14 +24,16 @@ object FeedHandler {
   //override def preStart(): Unit = log.info("Feed handler of {} started", feed)
   //override def postStop(): Unit = log.info("Feed handler of {} stopped", feed)
 
-  def fetcher(feed: URL, lastFetched: Instant): Behavior[Fetch] =
-    Actor.immutable[Fetch] { (ctx, msg) ⇒
-      ctx.system.log.info("Fetching and parsing feed '{}' for latest updates", feed)
+  def pollForNewEntries(feed: URL, lastPolled: Instant): Behavior[Poll] =
+    Actor.immutable[Poll] { (ctx, msg) ⇒
+      ctx.system.log.info("Fetching and parsing feed '{}'", feed)
+      val newLastPolled = Instant.now
       val maybeParsed = parseFeed(feed)
+
       maybeParsed match {
         case Success(v) ⇒
           ctx.system.log.info("Filtering out the newly added entries")
-          val newEntries = v.getEntries.asScala withFilter (extractDate(_) exists { _ isAfter lastFetched })
+          val newEntries = v.getEntries.asScala withFilter (extractDate(_) exists { _ isAfter lastPolled })
           for (entry ← newEntries)
             msg.replyTo ! Download(new URL(entry.getLink))
 
@@ -38,6 +41,7 @@ object FeedHandler {
           ctx.system.log.warning("An exception occurred while processing feed '{}': {}",
                                  feed, e.getMessage)
       }
-      Actor.same  // TODO refresh lastFetched with Instant.now  + test
+      pollForNewEntries(feed, newLastPolled)
     }
+
 }

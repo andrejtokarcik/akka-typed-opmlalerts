@@ -10,8 +10,8 @@ import scala.collection.JavaConverters._
 import scala.util.{ Try, Success, Failure }
 
 object FeedHandler {
-  final case class Poll(replyTo: ActorRef[Download])
-  final case class Download(url: URL)
+  final case class Poll(replyTo: ActorRef[FeedEntry])
+  final case class FeedEntry(url: URL)
 
   // TODO would be useful for EntryHandler too
   // (with java.net.MalformedURLException handled)
@@ -44,9 +44,9 @@ class FeedHandler(feedURL: URL) {
 
       maybeParsed match {
         case Success(feed) ⇒
-          ctx.system.log.info("Filtering out the newly added entries")
+          ctx.system.log.info("Filtering newly added entries")
           for (entry ← filterNewEntries(feed, lastPolled))
-            msg.replyTo ! Download(entry.getLink)
+            msg.replyTo ! FeedEntry(entry.getLink)
 
         case Failure(e) ⇒
           ctx.system.log.warning("An exception occurred while processing feed '{}': {}",

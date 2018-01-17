@@ -16,7 +16,7 @@ object Main extends App {
 
   implicit val timeout = Timeout(500.millis)
   implicit val sched = system.scheduler
-  val future: Future[Download] = system ? (Poll(_))
+  val future: Future[FeedEntry] = system ? (Poll(_))
 
   for {
     urls ← future recover { case _ ⇒ List() }

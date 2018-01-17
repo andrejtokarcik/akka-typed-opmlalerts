@@ -27,14 +27,14 @@ object FeedHandlerBehaviorSpec extends FeedHandlerSpec {
     def pollForNewSince(sinceStr: String) = {
       val since = parseTime(sinceStr)
       val testkit = BehaviorTestkit(pollForNewEntries(feed, since))
-      val inbox = TestInbox[Download]()
+      val inbox = TestInbox[FeedEntry]()
       testkit.run(Poll(inbox.ref))
       inbox.receiveAll
     }
   }
 
-  implicit def id2Download[T](url: T): Download =
-    new Download(s"http://example.com/test/$url")
+  implicit def id2FeedEntry[T](url: T): FeedEntry =
+    new FeedEntry(s"http://example.com/test/$url")
 }
 
 class FeedHandlerBehaviorSpec extends WordSpec with Matchers {
@@ -42,20 +42,20 @@ class FeedHandlerBehaviorSpec extends WordSpec with Matchers {
 
   "pollForNewEntries (qua behavior)" should {
 
-    "emit a Download per new item" in {
+    "emit a FeedEntry per new item" in {
       val received = basicRSSFeed pollForNewSince "Tue, 16 Jan 2018 02:45:50 GMT"
-      val expected: Seq[Download] = Vector(1516070880, 1516070820, 1516070760)
+      val expected: Seq[FeedEntry] = Vector(1516070880, 1516070820, 1516070760)
       received shouldEqual expected
     }
 
-    "emit no Download if no new items" in {
+    "emit no FeedEntry if no new items" in {
       val received = basicRSSFeed pollForNewSince "Tue, 16 Jan 2018 02:48:16 GMT"
       received shouldBe empty
     }
 
-    "emit Downloads only for entries with incorrupted dates" in {
+    "emit FeedEntry's only for entries with incorrupted dates" in {
       val received = corruptedRSSFeed pollForNewSince "Tue, 16 Jan 2018 02:43:30 GMT"
-      val expected: Seq[Download] = Vector(1516070760)
+      val expected: Seq[FeedEntry] = Vector(1516070760)
       received shouldEqual expected
     }
   }
@@ -82,7 +82,7 @@ class FeedHandlerAsyncSpec extends TestKit(FeedHandlerAsyncSpec.config)
   "pollForNewEntries (qua actor)" should {
 
     "log a warning on parse failure" in {
-      val probe = TestProbe[Download]()
+      val probe = TestProbe[FeedEntry]()
       val poller = spawn(pollForNewEntries(nonExistentFeed))
 
       val filter = EventFilter.warning(start = "An exception occurred while processing " +

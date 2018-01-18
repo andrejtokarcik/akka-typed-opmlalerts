@@ -23,11 +23,11 @@ object EntryHandler {
         scanEntryBehavior(extended)
       }
 
-      case (ctx, ScanEntry(url, replyTo)) ⇒ {
-        ctx.system.log.info("Scanning entry '{}' for pattern: {}", url, pattern)
-        val contents = Source.fromURL(url)
+      case (ctx, ScanEntry(entry, replyTo)) ⇒ {
+        ctx.system.log.info("Scanning entry {} for pattern: {}", entry, pattern)
+        val contents = Source.fromURL(entry.url)
         val matchingLines = contents.getLines flatMap (pattern.findFirstIn _)
-        matchingLines foreach { replyTo ! MatchFound(url, _) }
+        matchingLines foreach { replyTo ! MatchFound(entry, _) }
         Actor.same
       }
     }

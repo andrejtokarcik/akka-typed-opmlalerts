@@ -30,38 +30,38 @@ object FeedHandlerBehaviorSpec extends FeedHandlerSpec {
   }
 
   implicit def feedHandlerDSL(feed: URL) = new {
-    def pollForNewSince(sinceStr: String) = {
+    def fetchNewSince(sinceStr: String) = {
       val since = parseTime(sinceStr)
-      val testkit = BehaviorTestkit(pollForNewEntries(feed, since))
+      val testkit = BehaviorTestkit(fetchNewEntries(feed, since))
       val inbox = TestInbox[NewEntry]()
       testkit.run(PollFeed(inbox.ref))
       inbox.receiveAll
     }
-  }
 
-  implicit def id2NewEntry[T](url: T): NewEntry =
-    new NewEntry(s"http://example.com/test/$url")
+    def havingFetched[T](ids: Iterable[T]) =
+      ids map { id ⇒ new NewEntry(feed, s"http://example.com/test/$id") }
+  }
 }
 
 class FeedHandlerBehaviorSpec extends WordSpec with Matchers {
   import FeedHandlerBehaviorSpec._
 
-  "pollForNewEntries (qua behavior)" should {
+  "fetchNewEntries (qua behavior)" should {
 
     "emit a NewEntry per new item (RSS)" in {
-      val received = basicRSSFeed pollForNewSince "Tue, 16 Jan 2018 02:45:50 GMT"
-      val expected: Seq[NewEntry] = Vector(1516070880, 1516070820, 1516070760)
+      val received = basicRSSFeed fetchNewSince "Tue, 16 Jan 2018 02:45:50 GMT"
+      val expected = basicRSSFeed havingFetched Vector(1516070880, 1516070820, 1516070760)
       received shouldEqual expected
     }
 
     "emit no NewEntry if no new items" in {
-      val received = basicRSSFeed pollForNewSince "Tue, 16 Jan 2018 02:48:16 GMT"
+      val received = basicRSSFeed fetchNewSince "Tue, 16 Jan 2018 02:48:16 GMT"
       received shouldBe empty
     }
 
     "emit NewEntry's only for entries with incorrupted dates (RSS)" in {
-      val received = corruptedRSSFeed pollForNewSince "Tue, 16 Jan 2018 02:43:30 GMT"
-      val expected: Seq[NewEntry] = Vector(1516070760)
+      val received = corruptedRSSFeed fetchNewSince "Tue, 16 Jan 2018 02:43:30 GMT"
+      val expected = corruptedRSSFeed havingFetched Vector(1516070760)
       received shouldEqual expected
     }
   }
@@ -85,17 +85,17 @@ class FeedHandlerAsyncSpec extends TestKit(FeedHandlerAsyncSpec.config)
 
   import FeedHandlerAsyncSpec._
 
-  "pollForNewEntries (qua actor)" should {
+  "fetchNewEntries (qua actor)" should {
 
     "log a warning on parse failure" in {
       val probe = TestProbe[NewEntry]()
-      val poller = spawn(pollForNewEntries(nonExistentFeed))
+      val fetcher = spawn(fetchNewEntries(nonExistentFeed))
 
       val filter = EventFilter.warning(start = "An exception occurred while processing " +
         s"feed '$nonExistentFeed'", occurrences = 1)
       system.eventStream publish TestEvent.Mute(filter)
 
-      poller ! PollFeed(probe.ref)
+      fetcher ! PollFeed(probe.ref)
       probe.expectNoMsg(expectTimeout)
       filter.assertDone(expectTimeout)
     }

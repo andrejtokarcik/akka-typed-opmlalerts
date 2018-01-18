@@ -10,15 +10,8 @@ import scala.collection.JavaConverters._
 import scala.util.{ Try, Success, Failure }
 
 object FeedHandler {
-  // TODO would be useful for EntryHandler too
-  // (with java.net.MalformedURLException handled)
-  implicit def str2URL(str: String) = new URL(str)
-
-  def pollForNewEntries(feedURL: URL, since: Instant = Instant.now) =
-    new FeedHandler(feedURL) pollForNewEntries since
-
   lazy val sfi = new SyndFeedInput
-  def parseFeed(feed: URL) = Try { sfi build new XmlReader(feed) }
+  def parseFeed(feedURL: URL) = Try { sfi build new XmlReader(feedURL) }
 
   def filterNewEntries(feed: SyndFeed, lastPolled: Instant) =
     feed.getEntries.asScala withFilter
@@ -28,13 +21,9 @@ object FeedHandler {
     val date = Option(entry.getUpdatedDate) orElse Option(entry.getPublishedDate)
     date map (_.toInstant)
   }
-}
 
-class FeedHandler(feedURL: URL) {
-  import FeedHandler._
-
-  def pollForNewEntries(lastPolled: Instant): Behavior[PollFeed] =
-    Actor.immutable { (ctx, msg) ⇒
+  def fetchNewEntries(feedURL: URL, lastPolled: Instant = Instant.now): Behavior[FeedCommand] =
+    Actor.immutable { case (ctx, PollFeed(replyTo)) ⇒
       ctx.system.log.info("Fetching and parsing feed '{}'", feedURL)
       val pollTime = Instant.now
       val maybeParsed = parseFeed(feedURL)
@@ -43,13 +32,13 @@ class FeedHandler(feedURL: URL) {
         case Success(feed) ⇒
           ctx.system.log.info("Filtering newly added entries")
           for (entry ← filterNewEntries(feed, lastPolled))
-            msg.replyTo ! NewEntry(entry.getLink)
+            replyTo ! NewEntry(feedURL, entry.getLink)
 
         case Failure(e) ⇒
           ctx.system.log.warning("An exception occurred while processing feed '{}': {}",
                                  feedURL, e.getMessage)
       }
 
-      this.pollForNewEntries(pollTime)
+      fetchNewEntries(feedURL, pollTime)
     }
 }

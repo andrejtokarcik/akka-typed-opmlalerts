@@ -9,7 +9,7 @@ import scala.concurrent.duration._
 import opmlalerts.FeedHandler._
 
 object Main extends App {
-  val poller = pollForNewEntries("http://lorem-rss.herokuapp.com/feed")
+  val poller = fetchNewEntries("http://lorem-rss.herokuapp.com/feed")
   val system: ActorSystem[PollFeed] = ActorSystem(poller, "single-poller")
 
   implicit val ec = system.executionContext

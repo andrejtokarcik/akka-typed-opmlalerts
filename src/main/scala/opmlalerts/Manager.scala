@@ -1,6 +1,7 @@
 package opmlalerts
 
 import akka.actor.typed._
+import akka.actor.typed.receptionist.Receptionist
 import akka.actor.typed.scaladsl.{ Actor, ActorContext }
 import com.rometools.opml.feed.opml._
 import com.rometools.rome.io.{ WireFeedInput, XmlReader }
@@ -16,32 +17,47 @@ object Manager {
   type FeedMap = Map[URL, String]
   def buildFeedMap(opml: Opml): FeedMap =
     Map (opml.getOutlines.asScala map { x ⇒ ((x.getUrl: URL, x.getTitle)) }: _*)
-  
+
+  private def spawnReceptionistAdapter()(implicit ctx: ActorContext[ManagerMessage]) = {
+    import Receptionist.Listing
+    ctx.spawnAdapter {
+      case Listing(_, newPrinters) ⇒ RegisterPrinters(newPrinters)
+    }: ActorRef[Listing[PrintCommand]]
+  }
+
   type FeedHandlers = Iterable[ActorRef[FeedCommand]]
-  private def spawnFeedHandlers[T](feedMap: FeedMap)(implicit ctx: ActorContext[T]): FeedHandlers =
+  private def spawnFeedHandlers(feedMap: FeedMap)
+                               (implicit ctx: ActorContext[ManagerMessage]): FeedHandlers =
     feedMap.keys map
       { url ⇒ ctx.spawn(FeedHandler.fetchNewEntries(url), s"FeedHandler-$url") }
 
   type EntryHandlerPool = ActorRef[EntryCommand]
-  private def spawnEntryHandlerPool[T](poolSize: Int)(implicit ctx: ActorContext[T]): EntryHandlerPool = {
+  private def spawnEntryHandlerPool(poolSize: Int)
+                                   (implicit ctx: ActorContext[ManagerMessage]): EntryHandlerPool = {
     val roundRobin = roundRobinBehavior(poolSize, EntryHandler.scanEntry)
     ctx.spawn(roundRobin, "EntryHandler-pool")
   }
 
   def poolManager(opmlURL: URL): Behavior[ManagerMessage] = Actor.deferred { ctx ⇒
+    implicit val context = ctx
+
+    ctx.system.log.info("Subscribing to Printer instantiations")
+    val adapter = spawnReceptionistAdapter()
+    ctx.system.receptionist ! Receptionist.Subscribe(Printer.ServiceKey, adapter)
+
     val feedMap = buildFeedMap(parseOPML(opmlURL))
-    val feedHandlers = spawnFeedHandlers(feedMap)(ctx)
-    val entryHandlerPool = spawnEntryHandlerPool(feedMap.size)(ctx)
+    val feedHandlers = spawnFeedHandlers(feedMap)
+    val entryHandlerPool = spawnEntryHandlerPool(feedMap.size)
     poolManagerBehavior(feedMap, feedHandlers, entryHandlerPool)
   }
 
   private def poolManagerBehavior(feedMap: FeedMap, feedHandlers: FeedHandlers,
-                                  entryHandlerPool: EntryHandlerPool): Behavior[ManagerMessage] = {
+                                  entryHandlerPool: EntryHandlerPool) = {
     def withPrinters(printers: Seq[ActorRef[PrintCommand]]): Behavior[ManagerMessage] =
       Actor.immutable {
-        case (ctx, RegisterPrinter(printer: ActorRef[PrintCommand])) ⇒ {
-          ctx.system.log.info("Registering new printer {}", printer)
-          withPrinters(printer +: printers)
+        case (ctx, RegisterPrinters(newPrinters)) ⇒ {
+          ctx.system.log.info("Registering new printers {}", newPrinters)
+          withPrinters(printers ++ newPrinters)
         }
 
         case (ctx, PollAll) ⇒ {
@@ -55,10 +71,12 @@ object Manager {
           Actor.same
         }
 
-        case (_, MatchFound(NewEntry(feedURL, entryURL), matchedSection)) ⇒ {
-          val feedTitle = feedMap(feedURL)
+        case (ctx, MatchFound(NewEntry(feedURL, entryURL), matchedSection)) ⇒ {
+          if (printers.isEmpty)
+            ctx.system.log.warning("Attempting to PrintResult but no printers registered")
+
           printers foreach
-            { _ ! PrintResult(feedURL, feedTitle, entryURL, matchedSection) }
+            { _ ! PrintResult(feedMap(feedURL), entryURL, matchedSection) }
           Actor.same
         }
       }

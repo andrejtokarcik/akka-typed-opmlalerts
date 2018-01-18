@@ -10,9 +10,6 @@ import scala.collection.JavaConverters._
 import scala.util.{ Try, Success, Failure }
 
 object FeedHandler {
-  final case class PollFeed(replyTo: ActorRef[NewEntry])
-  final case class NewEntry(url: URL)
-
   // TODO would be useful for EntryHandler too
   // (with java.net.MalformedURLException handled)
   implicit def str2URL(str: String) = new URL(str)

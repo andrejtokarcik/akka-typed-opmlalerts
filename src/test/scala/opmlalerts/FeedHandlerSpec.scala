@@ -59,7 +59,7 @@ class FeedHandlerBehaviorSpec extends WordSpec with Matchers {
       received shouldBe empty
     }
 
-    "emit NewEntry's only for entries with incorrupted dates" in {
+    "emit NewEntry's only for entries with incorrupted dates (RSS)" in {
       val received = corruptedRSSFeed pollForNewSince "Tue, 16 Jan 2018 02:43:30 GMT"
       val expected: Seq[NewEntry] = Vector(1516070760)
       received shouldEqual expected

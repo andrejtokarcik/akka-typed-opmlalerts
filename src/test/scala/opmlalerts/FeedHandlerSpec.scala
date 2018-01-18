@@ -12,9 +12,15 @@ import scala.concurrent.duration._
 import opmlalerts.FeedHandler._
 
 trait FeedHandlerSpec {
-  val basicRSSFeed     = getClass.getResource("/lorem-ipsum.rss")
-  val corruptedRSSFeed = getClass.getResource("/pubDate-corrupted.rss")
-  val nonExistentFeed  = new URL("file:///doesNotExist")
+  val basicRSSFeed      = getClass.getResource("/lorem-ipsum.rss")
+  val corruptedRSSFeed  = getClass.getResource("/date-corrupted.rss")
+  val unparsableRSSFeed = getClass.getResource("/unparsable.rss")
+
+  //val basicAtomFeed     = getClass.getResource("/sample.atom")
+  //val corruptedAtomFeed = getClass.getResource("/date-corrupted.rss")
+  //val pubDateAtomFeed   = getClass.getResource("/published-updated.atom")
+
+  val nonExistentFeed   = new URL("file:///doesNotExist")
 }
 
 object FeedHandlerBehaviorSpec extends FeedHandlerSpec {
@@ -27,14 +33,14 @@ object FeedHandlerBehaviorSpec extends FeedHandlerSpec {
     def pollForNewSince(sinceStr: String) = {
       val since = parseTime(sinceStr)
       val testkit = BehaviorTestkit(pollForNewEntries(feed, since))
-      val inbox = TestInbox[FeedEntry]()
-      testkit.run(Poll(inbox.ref))
+      val inbox = TestInbox[NewEntry]()
+      testkit.run(PollFeed(inbox.ref))
       inbox.receiveAll
     }
   }
 
-  implicit def id2FeedEntry[T](url: T): FeedEntry =
-    new FeedEntry(s"http://example.com/test/$url")
+  implicit def id2NewEntry[T](url: T): NewEntry =
+    new NewEntry(s"http://example.com/test/$url")
 }
 
 class FeedHandlerBehaviorSpec extends WordSpec with Matchers {
@@ -42,20 +48,20 @@ class FeedHandlerBehaviorSpec extends WordSpec with Matchers {
 
   "pollForNewEntries (qua behavior)" should {
 
-    "emit a FeedEntry per new item" in {
+    "emit a NewEntry per new item (RSS)" in {
       val received = basicRSSFeed pollForNewSince "Tue, 16 Jan 2018 02:45:50 GMT"
-      val expected: Seq[FeedEntry] = Vector(1516070880, 1516070820, 1516070760)
+      val expected: Seq[NewEntry] = Vector(1516070880, 1516070820, 1516070760)
       received shouldEqual expected
     }
 
-    "emit no FeedEntry if no new items" in {
+    "emit no NewEntry if no new items" in {
       val received = basicRSSFeed pollForNewSince "Tue, 16 Jan 2018 02:48:16 GMT"
       received shouldBe empty
     }
 
-    "emit FeedEntry's only for entries with incorrupted dates" in {
+    "emit NewEntry's only for entries with incorrupted dates" in {
       val received = corruptedRSSFeed pollForNewSince "Tue, 16 Jan 2018 02:43:30 GMT"
-      val expected: Seq[FeedEntry] = Vector(1516070760)
+      val expected: Seq[NewEntry] = Vector(1516070760)
       received shouldEqual expected
     }
   }
@@ -64,7 +70,7 @@ class FeedHandlerBehaviorSpec extends WordSpec with Matchers {
 object FeedHandlerAsyncSpec extends FeedHandlerSpec {
   // NOTE: Although the `ActorContextSpec` suite does use `typed.loggers`,
   // the option does not seem to be taken into account and the old `loggers`
-  // must be specified.
+  // must be specified instead.
   val config = ConfigFactory.parseString(
     """|akka {
        |  loglevel = WARNING
@@ -82,14 +88,14 @@ class FeedHandlerAsyncSpec extends TestKit(FeedHandlerAsyncSpec.config)
   "pollForNewEntries (qua actor)" should {
 
     "log a warning on parse failure" in {
-      val probe = TestProbe[FeedEntry]()
+      val probe = TestProbe[NewEntry]()
       val poller = spawn(pollForNewEntries(nonExistentFeed))
 
       val filter = EventFilter.warning(start = "An exception occurred while processing " +
         s"feed '$nonExistentFeed'", occurrences = 1)
       system.eventStream publish TestEvent.Mute(filter)
 
-      poller ! Poll(probe.ref)
+      poller ! PollFeed(probe.ref)
       probe.expectNoMsg(expectTimeout)
       filter.assertDone(expectTimeout)
     }

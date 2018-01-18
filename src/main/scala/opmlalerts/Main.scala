@@ -10,15 +10,15 @@ import opmlalerts.FeedHandler._
 
 object Main extends App {
   val poller = pollForNewEntries("http://lorem-rss.herokuapp.com/feed")
-  val system: ActorSystem[Poll] = ActorSystem(poller, "single-poller")
+  val system: ActorSystem[PollFeed] = ActorSystem(poller, "single-poller")
 
   implicit val ec = system.executionContext
   implicit val sched = system.scheduler
   implicit val timeout = Timeout(500.millis)
-  val future: Future[FeedEntry] = system ? (Poll(_))
+  val future: Future[NewEntry] = system ? (PollFeed(_))
 
   for {
-    urls ← future recover { case _ ⇒ List() }
+    urls ← future recover { case e ⇒ e.getMessage }
     done ← {
       println(s"result: $urls")
       system.terminate()

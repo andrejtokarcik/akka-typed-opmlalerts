@@ -1,6 +1,9 @@
 import java.net.URL
+import scala.util.Try
 
 package object opmlalerts {
-  // TODO handle java.net.MalformedURLException
-  private[opmlalerts] implicit def str2URL(str: String) = new URL(str)
+
+  private[opmlalerts] implicit def tryString2URL(str: String): Try[URL] =
+    Try { new URL(str) }
+
 }

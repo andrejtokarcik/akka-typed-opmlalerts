@@ -3,22 +3,44 @@ package opmlalerts
 import akka.actor.typed._
 import akka.actor.typed.receptionist.Receptionist
 import akka.actor.typed.scaladsl.{ Actor, ActorContext }
+import akka.event.LoggingAdapter
 import com.rometools.opml.feed.opml._
 import com.rometools.rome.io.{ WireFeedInput, XmlReader }
 import java.net.URL
 import scala.collection.JavaConverters._
+import scala.util.{ Try, Success, Failure }
 
 import opmlalerts.ImmutableRoundRobin._
 
 object Manager {
-  lazy val wfi = new WireFeedInput
-  def parseOPML(opmlURL: URL) = { wfi build new XmlReader(opmlURL) }.asInstanceOf[Opml]
-
   type FeedMap = Map[URL, String]
-  def buildFeedMap(opml: Opml): FeedMap =
-    Map (opml.getOutlines.asScala map { x ⇒ ((x.getUrl: URL, x.getTitle)) }: _*)
+  def parseOPML(opmlURL: URL, log: LoggingAdapter): FeedMap = {
+    val wfi = new WireFeedInput
+    Try ({ wfi build new XmlReader(opmlURL) }.asInstanceOf[Opml]) match {
+      case Failure(e) ⇒ {
+        log.warning("OPML '{}' could not be parsed: {}", opmlURL, e.getMessage)
+        Map()
+      }
+      case Success(opml) ⇒ opml.getOutlines.asScala.foldLeft(Map(): FeedMap) {
+        (acc: FeedMap, outline: Outline) ⇒ {
+          (outline.getUrl: Try[URL]) match {
+            case Failure(e) ⇒ {
+              // FIXME gives warning even for outline groups (url=null)
+              // check for type (for feeds =link)
+              log.warning("URL '{}' from OPML '{}' is not valid: {}",
+                          outline.getUrl, opmlURL, e.getMessage)
+              acc
+            }
+            case Success(url) ⇒ acc + (url → outline.getTitle)
+          }
+        }
+      }
+    }
+  }
 
-  private def spawnReceptionistAdapter()(implicit ctx: ActorContext[ManagerMessage]) = {
+  type ManagerContext = ActorContext[ManagerMessage]
+
+  private def spawnReceptionistAdapter(ctx: ManagerContext) = {
     import Receptionist.Listing
     ctx.spawnAdapter {
       case Listing(_, newPrinters) ⇒ RegisterPrinters(newPrinters)
@@ -26,33 +48,35 @@ object Manager {
   }
 
   type FeedHandlers = Iterable[ActorRef[FeedCommand]]
-  private def spawnFeedHandlers(feedMap: FeedMap)
-                               (implicit ctx: ActorContext[ManagerMessage]): FeedHandlers =
+  private def spawnFeedHandlers(ctx: ManagerContext, feedMap: FeedMap): FeedHandlers = {
+    def sanitize(url: URL) = url.toString.replace('/', ',').replace('?', '!')
     feedMap.keys map
-      { url ⇒ ctx.spawn(FeedHandler.fetchNewEntries(url), s"FeedHandler-$url") }
+      { url ⇒ ctx.spawn(FeedHandler.fetchNewEntries(url),
+                        s"FeedHandler-${sanitize(url)}") }
+  }
 
   type EntryHandlerPool = ActorRef[EntryCommand]
-  private def spawnEntryHandlerPool(poolSize: Int)
-                                   (implicit ctx: ActorContext[ManagerMessage]): EntryHandlerPool = {
+  private def spawnEntryHandlerPool(ctx: ManagerContext, poolSize: Int): EntryHandlerPool = {
     val roundRobin = roundRobinBehavior(poolSize, EntryHandler.scanEntry)
     ctx.spawn(roundRobin, "EntryHandler-pool")
   }
 
-  def poolManager(opmlURL: URL): Behavior[ManagerMessage] = Actor.deferred { ctx ⇒
-    implicit val context = ctx
-
+  def manageActors(opmlURL: URL): Behavior[ManagerMessage] = Actor.deferred { ctx ⇒
     ctx.system.log.info("Subscribing to Printer instantiations")
-    val adapter = spawnReceptionistAdapter()
+    val adapter = spawnReceptionistAdapter(ctx)
     ctx.system.receptionist ! Receptionist.Subscribe(Printer.ServiceKey, adapter)
 
-    val feedMap = buildFeedMap(parseOPML(opmlURL))
-    val feedHandlers = spawnFeedHandlers(feedMap)
-    val entryHandlerPool = spawnEntryHandlerPool(feedMap.size)
-    poolManagerBehavior(feedMap, feedHandlers, entryHandlerPool)
+    val feedMap = parseOPML(opmlURL, ctx.system.log)
+    ctx.system.log.info("Spawning handlers for {} feeds", feedMap.size)
+    val feedHandlers = spawnFeedHandlers(ctx, feedMap)
+    ctx.system.log.info("Spawning pool of {} entry handlers", feedMap.size)
+    val entryHandlerPool = spawnEntryHandlerPool(ctx, feedMap.size)
+    manageBehavior(feedMap, feedHandlers, entryHandlerPool)
   }
 
-  private def poolManagerBehavior(feedMap: FeedMap, feedHandlers: FeedHandlers,
-                                  entryHandlerPool: EntryHandlerPool) = {
+  // TODO turn into a case class?
+  private def manageBehavior(feedMap: FeedMap, feedHandlers: FeedHandlers,
+                             entryHandlerPool: EntryHandlerPool) = {
     def withPrinters(printers: Seq[ActorRef[PrintCommand]]): Behavior[ManagerMessage] =
       Actor.immutable {
         case (ctx, RegisterPrinters(newPrinters)) ⇒ {

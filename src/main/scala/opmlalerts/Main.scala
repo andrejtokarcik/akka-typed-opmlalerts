@@ -1,27 +1,39 @@
 package opmlalerts
 
 import akka.actor.typed._
-import akka.actor.typed.scaladsl.AskPattern._
-import akka.util.Timeout
-import scala.concurrent.Future
-import scala.concurrent.duration._
+import java.net.URL
+import scala.Console._
+import scala.io.StdIn
+import scala.util.Try
 
-import opmlalerts.FeedHandler._
+import opmlalerts.Manager._
 
 object Main extends App {
-  val poller = fetchNewEntries("http://lorem-rss.herokuapp.com/feed")
-  val system: ActorSystem[PollFeed] = ActorSystem(poller, "single-poller")
+  def exitWithError(error: String) = {
+    println(s"${RESET}${BOLD}${RED}$error${RESET}")
+    sys.exit(1)
+  }
 
-  implicit val ec = system.executionContext
-  implicit val sched = system.scheduler
-  implicit val timeout = Timeout(500.millis)
-  val future: Future[NewEntry] = system ? (PollFeed(_))
+  val opmlStr: String = args.headOption getOrElse
+    exitWithError("Argument required: URL pointing to an OPML file")
+  val maybeURL: Try[URL] = opmlStr
+  if (maybeURL.isFailure)
+    exitWithError(s"'$opmlStr' is not a valid URL: ${maybeURL.failed.get.getMessage}")
+  val opmlURL = maybeURL.get
 
-  for {
-    urls ← future recover { case e ⇒ e.getMessage }
-    done ← {
-      println(s"result: $urls")
-      system.terminate()
-    }
-  } println("system terminated")
+  val manager = manageActors(opmlURL)
+  val system: ActorSystem[ManagerMessage] = ActorSystem(manager, "opml-alerts")
+
+  // TODO create printer
+
+  Thread.sleep(5000)
+  system ! PollAll   // TODO this should be automatic
+
+  try {
+    println(s"${RESET}${BOLD}*** Press ENTER to exit the system${RESET}")
+    StdIn.readLine()
+  } finally {
+    val _ = system.terminate()
+  }
+  println("End of demo, bye!")
 }

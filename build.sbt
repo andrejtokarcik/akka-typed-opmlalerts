@@ -6,6 +6,7 @@ lazy val akkaVersion = "2.5.9"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion,
+  "com.typesafe.akka" %% "akka-slf4j" % akkaVersion,
   "ch.qos.logback" % "logback-classic" % "1.2.3",
   "com.rometools" % "rome" % "1.9.0",
   "com.rometools" % "rome-opml" % "1.9.0"

@@ -39,7 +39,7 @@ object FeedHandlerBehaviorSpec extends FeedHandlerSpec {
     }
 
     def havingFetched[T](ids: Iterable[T]) =
-      ids map { id ⇒ new NewEntry(feed, s"http://example.com/test/$id") }
+      ids map { id ⇒ NewEntry(feed, new URL(s"http://example.com/test/$id")) }
   }
 }
 
@@ -91,8 +91,8 @@ class FeedHandlerAsyncSpec extends TestKit(FeedHandlerAsyncSpec.config)
       val probe = TestProbe[NewEntry]()
       val fetcher = spawn(fetchNewEntries(nonExistentFeed))
 
-      val filter = EventFilter.warning(start = "An exception occurred while processing " +
-        s"feed '$nonExistentFeed'", occurrences = 1)
+      val logMsg = s"Feed '$nonExistentFeed' could not be parsed"
+      val filter = EventFilter.warning(start = logMsg, occurrences = 1)
       system.eventStream publish TestEvent.Mute(filter)
 
       fetcher ! PollFeed(probe.ref)

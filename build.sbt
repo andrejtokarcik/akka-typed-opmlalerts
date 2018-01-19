@@ -9,7 +9,8 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-slf4j" % akkaVersion,
   "ch.qos.logback" % "logback-classic" % "1.2.3",
   "com.rometools" % "rome" % "1.9.0",
-  "com.rometools" % "rome-opml" % "1.9.0"
+  "com.rometools" % "rome-opml" % "1.9.0",
+  "org.scalaj" %% "scalaj-http" % "2.3.0"
 )
 
 // test-related dependencies

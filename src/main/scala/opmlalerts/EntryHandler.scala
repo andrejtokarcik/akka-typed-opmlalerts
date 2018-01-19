@@ -2,9 +2,11 @@ package opmlalerts
 
 import akka.actor.typed._
 import akka.actor.typed.scaladsl.Actor
+import java.net.URL
 import scala.io.Source
 import scala.util.matching.Regex
 import scala.util.{ Try, Success, Failure }
+import scalaj.http.{ Http, HttpOptions }
 
 object EntryHandler {
   val context = raw"(?:.){0,30}".r
@@ -25,17 +27,21 @@ object EntryHandler {
       }
 
       case (ctx, ScanEntry(entry, replyTo)) ⇒ {
-        val access = Try { Source.fromURL(entry.url) }
-        access match {
-          case Success(contents) ⇒ {
-            ctx.system.log.info("Scanning {} for pattern: {}", entry, pattern)
-            val matchingLines = contents.getLines flatMap (pattern.findFirstIn _)
+        ctx.system.log.info("Scanning {} for pattern '{}'", entry, pattern)
+        scanStream(entry.url, pattern) match {
+          case Success(matchingLines) ⇒
             matchingLines foreach { replyTo ! MatchFound(entry, _) }
-          }
           case Failure(fail) ⇒
             ctx.system.log.warning("{} could not be retrieved: {}", entry, fail)
         }
         Actor.same
       }
     }
+
+  def scanStream(url: URL, pattern: Regex) = Try {
+    val response = Http(url.toString).option(HttpOptions.followRedirects(true)) execute {
+      is ⇒ (Source.fromInputStream(is).getLines flatMap pattern.findFirstIn).toList
+    }
+    response.body
+  }
 }

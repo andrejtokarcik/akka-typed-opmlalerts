@@ -20,7 +20,7 @@ final case class PrintResult(feedTitle: String,
 
 sealed trait ManagerMessage extends WorkMessage
 final case class RegisterPrinters(newPrinters: Set[ActorRef[PrintCommand]]) extends ManagerMessage
-final case object PollAll extends ManagerMessage  // TODO regularly via timer/scheduler after Register
+final case object PollAll extends ManagerMessage
 
 sealed trait WorkerResponse extends ManagerMessage
 final case class NewEntry(feedURL: URL, url: URL) extends WorkerResponse  // TODO add date & other info

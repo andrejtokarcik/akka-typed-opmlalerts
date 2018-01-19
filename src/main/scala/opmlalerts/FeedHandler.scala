@@ -51,7 +51,7 @@ object FeedHandler {
   def filterNewEntries(entries: Vector[FeedEntry], lastPolled: Instant) =
     entries filter { _.date isAfter lastPolled }
 
-  def fetchNewEntries(feedURL: URL, lastPolled: Instant = Instant.now.minusSeconds(120)): Behavior[FeedCommand] =
+  def fetchNewEntries(feedURL: URL, lastPolled: Instant = Instant.now): Behavior[FeedCommand] =
     Actor.immutable { case (ctx, PollFeed(replyTo)) ⇒
       ctx.system.log.info("Fetching and parsing feed '{}'", feedURL)
       val pollTime = Instant.now

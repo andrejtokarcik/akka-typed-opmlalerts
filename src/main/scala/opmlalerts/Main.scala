@@ -26,9 +26,6 @@ object Main extends App {
 
   // TODO create printer
 
-  Thread.sleep(5000)
-  system ! PollAll   // TODO this should be automatic
-
   try {
     println(s"${RESET}${BOLD}*** Press ENTER to exit the system${RESET}")
     StdIn.readLine()

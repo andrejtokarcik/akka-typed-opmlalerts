@@ -8,6 +8,7 @@ import com.rometools.opml.feed.opml._
 import com.rometools.rome.io.{ WireFeedInput, XmlReader }
 import java.net.URL
 import scala.collection.JavaConverters._
+import scala.concurrent.duration._
 import scala.util.{ Try, Success, Failure }
 
 import opmlalerts.ImmutableRoundRobin._
@@ -71,7 +72,12 @@ object Manager {
     val feedHandlers = spawnFeedHandlers(ctx, feedMap)
     ctx.system.log.info("Spawning pool of {} entry handlers", feedMap.size)
     val entryHandlerPool = spawnEntryHandlerPool(ctx, feedMap.size)
-    manageBehavior(feedMap, feedHandlers, entryHandlerPool)
+
+    Actor.withTimers { timers ⇒
+      // TODO timer interval configurable per feed group
+      timers.startPeriodicTimer(PollAll, PollAll, 5.seconds)
+      manageBehavior(feedMap, feedHandlers, entryHandlerPool)
+    }
   }
 
   // TODO turn into a case class?

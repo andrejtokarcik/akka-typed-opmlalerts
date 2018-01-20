@@ -3,6 +3,7 @@ package opmlalerts
 import akka.actor.typed._
 import akka.actor.typed.receptionist.Receptionist
 import akka.actor.typed.scaladsl.{ Actor, ActorContext }
+import java.io.File
 import java.net.URL
 
 import opmlalerts.ImmutableRoundRobin._
@@ -33,7 +34,7 @@ object Manager {
     ctx.spawn(roundRobin, "EntryHandler-pool")
   }
 
-  def manageActors(opmlURL: URL): Behavior[ManagerMessage] = Actor.deferred { ctx ⇒
+  def manageActors(opmlURL: File): Behavior[ManagerMessage] = Actor.deferred { ctx ⇒
     ctx.system.log.info("Subscribing to Printer instantiations")
     val adapter = spawnReceptionistAdapter(ctx)
     ctx.system.receptionist ! Receptionist.Subscribe(Printer.ServiceKey, adapter)

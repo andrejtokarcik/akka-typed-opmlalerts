@@ -4,6 +4,7 @@ import akka.event.LoggingAdapter
 import com.rometools.opml.feed.opml.{ Opml ⇒ RomeOPML, Outline ⇒ RomeOutline }
 import com.rometools.rome.feed.synd.{ SyndEntry ⇒ RomeEntry }
 import com.rometools.rome.io.{ SyndFeedInput, WireFeedInput, XmlReader }
+import java.io.File
 import java.net.URL
 import java.time.Instant
 import scala.collection.JavaConverters._
@@ -22,10 +23,10 @@ object Parser {
 case class Parser(log: LoggingAdapter) {
   import Parser._
 
-  def parseOPML(opmlURL: URL): Map[URL, FeedInfo] = this.OPML(opmlURL).parse()
+  def parseOPML(opmlURL: File): Map[URL, FeedInfo] = this.OPML(opmlURL).parse()
   def parseFeed(feedURL: URL): Vector[FeedEntry] = this.Feed(feedURL).parse()
 
-  private case class OPML(opmlURL: URL) {
+  private case class OPML(opmlURL: File) {
 
     lazy val wfi = new WireFeedInput
 

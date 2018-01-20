@@ -1,7 +1,8 @@
 package opmlalerts
 
 import akka.actor.typed._
-import java.net.URL
+import java.io.File
+//import java.nio.file.Path
 import scala.Console._
 import scala.io.StdIn
 import scala.util.Try
@@ -14,14 +15,15 @@ object Main extends App {
     sys.exit(1)
   }
 
-  val opmlStr: String = args.headOption getOrElse
-    exitWithError("Argument required: URL pointing to an OPML file")
-  val maybeURL: Try[URL] = opmlStr
-  if (maybeURL.isFailure)
-    exitWithError(s"'$opmlStr' is not a valid URL: ${maybeURL.failed.get}")
-  val opmlURL = maybeURL.get
+  // TODO watch
+  val opmlPathStr: String = args.headOption getOrElse
+    exitWithError("Specify path to an OPML file")
+  //val opmlPath: Path = (opmlPathStr: Try[Path]) getOrEffect
+  //  { case e ⇒ exitWithError(s"'$opmlPathStr' is not a path: $e") }
+  val opmlFile: File = Try { new File(opmlPathStr) } getOrEffect
+    { e ⇒ exitWithError(s"'$opmlPathStr' is not a file: $e") }
 
-  val manager = manageActors(opmlURL)
+  val manager = manageActors(opmlFile)
   val system = ActorSystem(manager, "opml-alerts")
 
   // TODO create printer

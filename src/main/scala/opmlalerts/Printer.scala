@@ -4,6 +4,8 @@ import akka.actor.typed._
 import akka.actor.typed.receptionist
 import akka.actor.typed.scaladsl.Actor
 
+import opmlalerts.Messages.{ PrintCommand, PrintResult }
+
 object Printer {
   val ServiceKey = receptionist.ServiceKey[PrintCommand]("Printer")
 

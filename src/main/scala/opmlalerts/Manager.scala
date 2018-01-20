@@ -6,7 +6,8 @@ import akka.actor.typed.scaladsl.{ Actor, ActorContext }
 import java.net.URL
 
 import opmlalerts.ImmutableRoundRobin._
-import opmlalerts.Parser._
+import opmlalerts.Messages._
+import opmlalerts.Parser.FeedInfo
 
 object Manager {
   type ManagerContext = ActorContext[ManagerMessage]
@@ -19,7 +20,7 @@ object Manager {
   }
 
   type FeedHandlerMap = Map[URL, ActorRef[FeedCommand]]
-  private def spawnFeedHandlers(ctx: ManagerContext, feedMap: FeedInfoMap): FeedHandlerMap = {
+  private def spawnFeedHandlers(ctx: ManagerContext, feedMap: Map[URL, FeedInfo]): FeedHandlerMap = {
     def sanitize(url: URL) = url.toString.replace('/', ',').replace('?', '!')
     feedMap.keysIterator.map(url ⇒
       url → ctx.spawn(FeedHandler.getNewEntries(url), s"FeedHandler-${sanitize(url)}")
@@ -37,7 +38,7 @@ object Manager {
     val adapter = spawnReceptionistAdapter(ctx)
     ctx.system.receptionist ! Receptionist.Subscribe(Printer.ServiceKey, adapter)
 
-    val feedMap = parseOPML(opmlURL, ctx.system.log)
+    val feedMap = Parser(ctx.system.log).parseOPML(opmlURL)
     ctx.system.log.info("Spawning {} feed handlers (one per feed)", feedMap.size)
     val feedHandlers = spawnFeedHandlers(ctx, feedMap)
     ctx.system.log.info("Spawning pool of {} entry handlers", feedMap.size)
@@ -53,7 +54,7 @@ object Manager {
   }
 
   // TODO turn into a case class?
-  private def manageBehavior(feedMap: FeedInfoMap, feedHandlers: FeedHandlerMap,
+  private def manageBehavior(feedMap: Map[URL, FeedInfo], feedHandlers: FeedHandlerMap,
                              entryHandlerPool: EntryHandlerPool) = {
     def withPrinters(printers: Seq[ActorRef[PrintCommand]]): Behavior[ManagerMessage] =
       Actor.immutable {

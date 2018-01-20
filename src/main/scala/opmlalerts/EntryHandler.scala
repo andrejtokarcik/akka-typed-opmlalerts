@@ -8,6 +8,8 @@ import scala.util.matching.Regex
 import scala.util.{ Try, Success, Failure }
 import scalaj.http.{ Http, HttpOptions }
 
+import opmlalerts.Messages.{ AddPattern, EntryCommand, MatchFound, ScanEntry }
+
 object EntryHandler {
   val context = raw"(?:.){0,30}".r
 

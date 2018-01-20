@@ -22,7 +22,7 @@ object Main extends App {
   val opmlURL = maybeURL.get
 
   val manager = manageActors(opmlURL)
-  val system: ActorSystem[ManagerMessage] = ActorSystem(manager, "opml-alerts")
+  val system = ActorSystem(manager, "opml-alerts")
 
   // TODO create printer
 

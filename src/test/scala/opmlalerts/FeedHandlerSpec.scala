@@ -10,6 +10,7 @@ import org.scalatest._
 import scala.concurrent.duration._
 
 import opmlalerts.FeedHandler._
+import opmlalerts.Messages.{ GetNewEntries, NewEntry }
 
 trait FeedHandlerSpec {
   val basicRSSFeed      = getClass.getResource("/lorem-ipsum.rss")

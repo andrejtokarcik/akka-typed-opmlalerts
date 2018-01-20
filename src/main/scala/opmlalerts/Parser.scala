@@ -1,53 +1,125 @@
 package opmlalerts
 
 import akka.event.LoggingAdapter
-import com.rometools.opml.feed.opml._
-import com.rometools.rome.io.{ WireFeedInput, XmlReader }
+import com.rometools.opml.feed.opml.{ Opml ⇒ RomeOPML, Outline ⇒ RomeOutline }
+import com.rometools.rome.feed.synd.{ SyndEntry ⇒ RomeEntry }
+import com.rometools.rome.io.{ SyndFeedInput, WireFeedInput, XmlReader }
 import java.net.URL
+import java.time.Instant
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.util.matching.Regex
 import scala.util.{ Try, Success, Failure }
 
 object Parser {
-  final case class FeedInfo(title: Option[String], pattern: Option[Regex], interval: FiniteDuration)
-  type FeedInfoMap = Map[URL, FeedInfo]
+  final case class FeedInfo(title: Option[String],
+                            pattern: Option[Regex],
+                            interval: FiniteDuration)
 
-  lazy val defaultInterval = 1.minute
+  final case class FeedEntry(date: Instant, url: URL)
+}
 
-  def parseOPML(opmlURL: URL, log: LoggingAdapter): FeedInfoMap = {
-    val wfi = new WireFeedInput
-    Try ({ wfi build new XmlReader(opmlURL) }.asInstanceOf[Opml]) match {
-      case Failure(e) ⇒ {
-        log.error("OPML '{}' could not be parsed: {}", opmlURL, e.getMessage)
-        Map()
+case class Parser(log: LoggingAdapter) {
+  import Parser._
+
+  def parseOPML(opmlURL: URL): Map[URL, FeedInfo] = this.OPML(opmlURL).parse()
+  def parseFeed(feedURL: URL): Vector[FeedEntry] = this.Feed(feedURL).parse()
+
+  private case class OPML(opmlURL: URL) {
+
+    lazy val wfi = new WireFeedInput
+
+    def parse(): Map[URL, FeedInfo] = {
+      Try ({ wfi build new XmlReader(opmlURL) }.asInstanceOf[RomeOPML]) match {
+        case Failure(e) ⇒ {
+          log.error("OPML '{}' could not be parsed: {}", opmlURL, e)
+          Map()
+        }
+        case Success(opml) ⇒ opml.getOutlines.asScala.foldLeft(Map(): Map[URL, FeedInfo]) {
+          (acc: Map[URL, FeedInfo], outline: RomeOutline) ⇒
+            this.Outline(outline).parseWith(acc)
+        }
       }
-      case Success(opml) ⇒ opml.getOutlines.asScala.foldLeft(Map(): FeedInfoMap) {
-        (acc: FeedInfoMap, outline: Outline) ⇒ {
-          val title = Option(outline.getTitle) orElse Option(outline.getText)
-          (outline.getUrl: Try[URL]) match {
-            case Failure(e) ⇒ {
-              // TODO need to step in recursively
-              if (outline.getChildren.asScala.nonEmpty)
-                log.info("Skipping an OPML outline group with title {} in OPML '{}'",
-                         title, opmlURL)
-              else
-                log.warning("URL '{}' with title {} from OPML '{}' is not valid: {}",
-                            outline.getUrl, title, opmlURL, e)
-              acc
-            }
-            case Success(feedURL) ⇒ {
-              val pattern = Option(outline.getAttributeValue("pattern")) map (_.r)
-              val interval = {
-                val attr = Option(outline.getAttributeValue("interval"))
-                val asDuration = Try { attr map (_.toInt) map (_.seconds) }
-                if (asDuration.isFailure) {
-                  log.warning("Interval '{}' associated with feed '{}' is not valid: {}",
-                              attr.get, feedURL, asDuration.failed.get)
-                }
-                asDuration.toOption.flatten getOrElse defaultInterval
+    }
+
+    case class Outline(outline: RomeOutline) {
+
+      lazy val titleAttr = Option(outline.getTitle) orElse Option(outline.getText)
+      lazy val urlAttr: Try[URL] = outline.getUrl
+      lazy val intervalAttr = Option(outline.getAttributeValue("interval"))
+
+      lazy val defaultInterval = 1.minute
+
+      lazy val logDesc = s"associated with title ${titleAttr} from OPML '${opmlURL}'"
+
+      def parseWith(partiallyConstructed: Map[URL, FeedInfo]) = {
+         urlAttr match {
+          case Failure(e) ⇒ {
+            if (outline.getChildren.asScala.nonEmpty)  // TODO need to step in recursively
+              log.info("Skipping an outline group {}", logDesc)
+            else
+              log.warning("URL {} is not valid: {}", logDesc, e)
+
+            partiallyConstructed
+          }
+          case Success(feedURL) ⇒ {
+            val pattern = Option(outline.getAttributeValue("pattern")) map (_.r)
+            val interval = parseInterval()
+            partiallyConstructed + (feedURL → FeedInfo(titleAttr, pattern, interval))
+          }
+        }
+      }
+
+      def parseInterval(): FiniteDuration = {
+        val asDuration = Try { intervalAttr map (_.toInt) map (_.seconds) }
+        if (asDuration.isFailure) {
+          log.warning("Interval '{}' {} is not valid: {}",
+                      intervalAttr.get, logDesc, asDuration.failed.get)
+        }
+        asDuration.toOption.flatten getOrElse defaultInterval
+      }
+    }
+  }
+
+  private case class Feed(feedURL: URL) {
+
+    lazy val sfi = new SyndFeedInput
+
+    def parse(): Vector[FeedEntry] = {
+      Try { sfi build new XmlReader(feedURL) } match {
+        case Failure(e) ⇒ {
+          log.warning("Feed '{}' could not be parsed: {}", feedURL, e)
+          Vector()
+        }
+        case Success(feed) ⇒ feed.getEntries.asScala.foldLeft(Vector(): Vector[FeedEntry]) {
+          (acc: Vector[FeedEntry], entry: RomeEntry) ⇒
+            this.Entry(entry).parseWith(acc)
+        }
+      }
+    }
+    
+    case class Entry(entry: RomeEntry) {
+
+      lazy val dateAttr = {
+        Option(entry.getUpdatedDate) orElse
+          Option(entry.getPublishedDate) map (_.toInstant)
+      }
+      lazy val urlAttr: Try[URL] = entry.getLink
+
+      def parseWith(partiallyConstructed: Vector[FeedEntry]) = {
+        dateAttr match {
+          case None ⇒ {
+            log.warning("Feed '{}' contains entry with missing/corrupted date: {}",
+                        feedURL, entry.getLink)
+            partiallyConstructed
+          }
+          case Some(date) ⇒ {
+            urlAttr match {
+              case Failure(e) ⇒ {
+                log.warning("URL from feed '{}' is not valid: {}", feedURL, e)
+                partiallyConstructed
               }
-              acc + (feedURL → FeedInfo(title, pattern, interval))
+              case Success(url) ⇒ partiallyConstructed :+ FeedEntry(date, url)
             }
           }
         }

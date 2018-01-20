@@ -18,7 +18,7 @@ object Main extends App {
     exitWithError("Argument required: URL pointing to an OPML file")
   val maybeURL: Try[URL] = opmlStr
   if (maybeURL.isFailure)
-    exitWithError(s"'$opmlStr' is not a valid URL: ${maybeURL.failed.get.getMessage}")
+    exitWithError(s"'$opmlStr' is not a valid URL: ${maybeURL.failed.get}")
   val opmlURL = maybeURL.get
 
   val manager = manageActors(opmlURL)

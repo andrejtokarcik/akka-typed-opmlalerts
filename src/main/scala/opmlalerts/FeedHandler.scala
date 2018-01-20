@@ -16,7 +16,7 @@ object FeedHandler {
     val sfi = new SyndFeedInput
     Try { sfi build new XmlReader(feedURL) } match {
       case Failure(e) ⇒ {
-        log.warning("Feed '{}' could not be parsed: {}", feedURL, e.getMessage)
+        log.warning("Feed '{}' could not be parsed: {}", feedURL, e)
         Vector()
       }
       case Success(feed) ⇒ feed.getEntries.asScala.foldLeft(Vector(): Vector[FeedEntry]) {
@@ -31,7 +31,7 @@ object FeedHandler {
               (entry.getLink: Try[URL]) match {
                 case Failure(e) ⇒ {
                   log.warning("URL '{}' from feed '{}' is not valid: {}",
-                              feed.getLink, feedURL, e.getMessage)
+                              feed.getLink, feedURL, e)
                   acc
                 }
                 case Success(url) ⇒ acc :+ FeedEntry(date, url)
@@ -48,20 +48,17 @@ object FeedHandler {
     date map (_.toInstant)
   }
 
-  def filterNewEntries(entries: Vector[FeedEntry], lastPolled: Instant) =
-    entries filter { _.date isAfter lastPolled }
-
-  def fetchNewEntries(feedURL: URL, lastPolled: Instant = Instant.now): Behavior[FeedCommand] =
-    Actor.immutable { case (ctx, PollFeed(replyTo)) ⇒
+  def getNewEntries(feedURL: URL, lastPolled: Instant = Instant.now): Behavior[FeedCommand] =
+    Actor.immutable { case (ctx, GetNewEntries(replyTo)) ⇒
       ctx.system.log.info("Fetching and parsing feed '{}'", feedURL)
       val pollTime = Instant.now
 
-      val feed = parseFeed(feedURL, ctx.system.log)
-      val newEntries = filterNewEntries(feed, lastPolled)
+      val entries = parseFeed(feedURL, ctx.system.log)
+      val newEntries = entries filter { _.date isAfter lastPolled }
       for (FeedEntry(_, url) ← newEntries)
         replyTo ! NewEntry(feedURL, url)
       ctx.system.log.info("Feed '{}' had {} new entries", feedURL, newEntries.length)
 
-      fetchNewEntries(feedURL, pollTime)
+      getNewEntries(feedURL, pollTime)
     }
 }

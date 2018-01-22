@@ -30,20 +30,20 @@ object Manager {
                                              matched: EntryHandler.MatchFound)
       extends Response
 
-  def manage(opmlURL: File): Behavior[Message] =
-    Actor.deferred { ctx ⇒ new Manager(opmlURL)(ctx).manage() }
+  def manage(opmlFile: File): Behavior[Message] =
+    Actor.deferred { ctx ⇒ new Manager(opmlFile)(ctx).manage() }
 }
 
-class Manager(opmlURL: File)(implicit val ctx: ActorContext[Manager.Message]) {
+class Manager(opmlFile: File)(implicit val ctx: ActorContext[Manager.Message]) {
   import Manager._
 
   val firstPoll = Instant.now
 
-  val feedMap = Parser(ctx.system.log).parseOPML(opmlURL)
+  val feedMap = Parser(ctx.system.log).parseOPML(opmlFile)
 
   type FeedHandlerMap = Map[URL, ActorRef[FeedHandler.Command]]
-  val feedHandlers = {
-    ctx.system.log.info("Spawning {} feed handlers (one per feed)", feedMap.size)
+  lazy val feedHandlers = {
+    ctx.system.log.debug("Spawning {} feed handlers (one per feed)", feedMap.size)
     def sanitize(url: URL) = url.toString.replace('/', ',').replace('?', '!')
     feedMap.keysIterator.map(url ⇒
       url → ctx.spawn(FeedHandler(url) getNewEntriesSince firstPoll,
@@ -52,16 +52,16 @@ class Manager(opmlURL: File)(implicit val ctx: ActorContext[Manager.Message]) {
   }
 
   type EntryHandlerPool = ActorRef[EntryHandler.Command]
-  val entryHandlerPool = {
+  lazy val entryHandlerPool = {
     val poolSize = feedMap.size * 3
-    ctx.system.log.info("Spawning pool of {} entry handlers", poolSize)
+    ctx.system.log.debug("Spawning pool of {} entry handlers", poolSize)
     val roundRobin = roundRobinBehavior(poolSize, EntryHandler.scanEntry)
     ctx.spawn(roundRobin, "EntryHandler-pool")
   }
 
   def subscribeToPrinters() = {
     import Receptionist.Listing
-    ctx.system.log.info("Subscribing to Printer instantiations")
+    ctx.system.log.debug("Subscribing to Printer instantiations")
     val adapter: ActorRef[Listing[Printer.Command]] = ctx.spawnAdapter {
       case Listing(_, newPrinters) ⇒ RegisterPrinters(newPrinters)
     }
@@ -70,8 +70,12 @@ class Manager(opmlURL: File)(implicit val ctx: ActorContext[Manager.Message]) {
   }
 
   def manage(): Behavior[Message] = {
-    subscribeToPrinters()
+    if (feedMap.isEmpty) {
+      ctx.system.log.error("No valid feeds -- no action until the OPML is updated")
+      return Actor.empty
+    }
 
+    subscribeToPrinters()
     Actor.withTimers { timers ⇒
       timers.startPeriodicTimer(ReportTimeSinceLastPoll, ReportTimeSinceLastPoll, 10.seconds)
       // TODO timer interval configurable per feed group
@@ -102,14 +106,14 @@ class Manager(opmlURL: File)(implicit val ctx: ActorContext[Manager.Message]) {
                        lastPoll: Instant, lastFeed: Option[URL]): Behavior[Message] =
     Actor.immutable {
       case (ctx, RegisterPrinters(newPrinters)) ⇒ {
-        ctx.system.log.info("Registering new printers {}", newPrinters)
+        ctx.system.log.debug("Registering new printers {}", newPrinters)
         newPrinters foreach
           { printer ⇒ ctx.watchWith(printer, UnregisterPrinter(printer)) }
         behavior(printers ++ newPrinters, lastPoll, lastFeed)
       }
 
       case (ctx, UnregisterPrinter(printer)) ⇒ {
-        ctx.system.log.info("Unregistering printer {}", printer)
+        ctx.system.log.debug("Unregistering printer {}", printer)
         behavior(printers filter (_ != printer), lastPoll, lastFeed)
       }
 

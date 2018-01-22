@@ -19,7 +19,7 @@ object EntryHandler {
   def scanEntry: Behavior[Command] =
     Actor.immutable {
       case (ctx, ScanEntry(entryURL, pattern, replyTo)) ⇒ {
-        ctx.system.log.info("Scanning {} for pattern '{}'", entryURL, pattern)
+        ctx.system.log.debug("Scanning {} for pattern '{}'", entryURL, pattern)
         scanWithBrowser(entryURL, pattern.withContext) match {
           case Success(sections) ⇒
             if (sections.nonEmpty)

@@ -23,17 +23,17 @@ object Parser {
 case class Parser(log: LoggingAdapter) {
   import Parser._
 
-  def parseOPML(opmlURL: File): Map[URL, FeedInfo] = this.OPML(opmlURL).parse()
+  def parseOPML(opmlFile: File): Map[URL, FeedInfo] = this.OPML(opmlFile).parse()
   def parseFeed(feedURL: URL): Vector[FeedEntry] = this.Feed(feedURL).parse()
 
-  case class OPML(opmlURL: File) {
+  case class OPML(opmlFile: File) {
 
     lazy val wfi = new WireFeedInput
 
     def parse(): Map[URL, FeedInfo] = {
-      Try ({ wfi build new XmlReader(opmlURL) }.asInstanceOf[RomeOPML]) match {
+      Try ({ wfi build new XmlReader(opmlFile) }.asInstanceOf[RomeOPML]) match {
         case Failure(e) ⇒ {
-          log.error("OPML '{}' could not be parsed: {}", opmlURL, e)
+          log.error("OPML {} could not be parsed: {}", opmlFile, e)
           Map()
         }
         case Success(opml) ⇒ opml.getOutlines.asScala.foldLeft(Map(): Map[URL, FeedInfo]) {
@@ -52,16 +52,22 @@ case class Parser(log: LoggingAdapter) {
 
       lazy val defaultInterval = 1.minute
 
-      lazy val logDesc = s"associated with title ${titleAttr} and URL ${urlAttr} in OPML ${opmlURL}"
+      lazy val logDesc = {
+        val titleDesc = titleAttr map { s ⇒ s"title '$s'" } getOrElse ""
+        val urlDesc = Option(outline.getUrl) map { s ⇒ s"URL '$s'" } getOrElse ""
+        val and = if (titleAttr.isDefined && urlAttr.isSuccess) " and " else ""
+        s"associated with ${titleDesc}${and}${urlDesc} in OPML ${opmlFile}"
+      }
 
       def parseWith(partiallyConstructed: Map[URL, FeedInfo]) = {
          urlAttr match {
           case Failure(e) ⇒ {
-            if (outline.getChildren.asScala.nonEmpty)  // TODO need to step in recursively
-              log.info("Skipping outline group {}", logDesc)
-            else
-              log.warning("URL {} is not valid: {}", logDesc, e)
-
+            if (outline.getChildren.asScala.nonEmpty) {  // TODO need to step in recursively
+              log.warning("Skipping outline group {}", logDesc)
+            } else {
+              val urlStr = Option(outline.getUrl) getOrElse ""
+              log.warning("URL {} {} is not valid: {}", urlStr, logDesc, e)
+            }
             partiallyConstructed
           }
           case Success(feedURL) ⇒ {

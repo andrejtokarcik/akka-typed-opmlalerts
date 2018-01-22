@@ -27,8 +27,11 @@ object Main extends App {
 
   val root: Behavior[akka.NotUsed] =
     Actor.deferred { ctx ⇒
-      ctx.spawn(Manager.manage(opmlFile), "manager")
+      ctx.system.log.debug("Spawning printer with screen width = {}", screenWidth)
       ctx.spawn(Printer.printOnConsole(screenWidth), "printer")
+
+      ctx.system.log.debug("Spawning manager with OPML file {}", opmlFile)
+      ctx.spawn(Manager.manage(opmlFile), "manager")
 
       Actor.empty
     }

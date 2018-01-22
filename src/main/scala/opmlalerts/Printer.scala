@@ -22,8 +22,6 @@ object Printer {
       ctx.system.receptionist ! Register(ServiceKey, ctx.self, ctx.system.deadLetters)
 
       val screenWidth = maybeWidth getOrElse 80
-      ctx.system.log.info("Spawned printer with screen width = {}", screenWidth)
-
       Actor.immutable {
         (_, msg) ⇒ {
           doPrintOnConsole(msg, screenWidth)
@@ -35,6 +33,7 @@ object Printer {
   def doPrintOnConsole(msg: Command, screenWidth: Int) = {
     msg match {
       case PrintMatch(feedTitle, feedURL, entryURL, matched) ⇒ {
+        println("=" * screenWidth)
         if (feedTitle.isDefined)
           printBit("Feed title", feedTitle.get)
         printBit("Feed URL", feedURL)

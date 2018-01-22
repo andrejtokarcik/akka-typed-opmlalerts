@@ -3,10 +3,9 @@ package opmlalerts
 import akka.actor.typed._
 import akka.actor.typed.scaladsl.Actor
 import java.net.URL
-import scala.io.Source
+import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import scala.util.matching.Regex
 import scala.util.{ Try, Success, Failure }
-import scalaj.http.{ Http, HttpOptions }
 
 object EntryHandler {
   sealed trait Command
@@ -15,16 +14,16 @@ object EntryHandler {
                              replyTo: ActorRef[MatchFound])
       extends Command
 
-  final case class MatchFound(firstWithContext: String, numMatches: Int)
+  final case class MatchFound(matchedSection: String, numMatches: Int)
 
   def scanEntry: Behavior[Command] =
     Actor.immutable {
       case (ctx, ScanEntry(entryURL, pattern, replyTo)) ⇒ {
         ctx.system.log.info("Scanning {} for pattern '{}'", entryURL, pattern)
-        scanStream(entryURL, pattern.withContext) match {
-          case Success(matchedSections) ⇒
-            matchedSections.headOption foreach
-              { replyTo ! MatchFound(_, matchedSections.length) }
+        scanWithBrowser(entryURL, pattern.withContext) match {
+          case Success(sections) ⇒
+            if (sections.nonEmpty)
+              { replyTo ! MatchFound(sections.matched, sections.size) }
           case Failure(fail) ⇒
             ctx.system.log.warning("{} could not be retrieved: {}", entryURL, fail)
         }
@@ -39,10 +38,9 @@ object EntryHandler {
     }
   }
 
-  def scanStream(url: URL, pattern: Regex) = Try {
-    val response = Http(url.toString).option(HttpOptions.followRedirects(true)) execute {
-      is ⇒ Source.fromInputStream(is).getLines.flatMap(pattern.findFirstIn).toList
-    }
-    response.body
+  lazy val browser = JsoupBrowser()
+  def scanWithBrowser(url: URL, pattern: Regex) = Try {
+    val text = browser.get(url.toString).body.text
+    pattern findAllIn text
   }
 }

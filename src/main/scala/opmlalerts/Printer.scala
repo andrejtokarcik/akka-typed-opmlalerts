@@ -16,10 +16,13 @@ object Printer {
 
   val ServiceKey = receptionist.ServiceKey[Command]("Printer")
 
-  def printOnConsole(screenWidth: Int = 80): Behavior[Command] =
+  def printOnConsole(maybeWidth: Option[Int]): Behavior[Command] =
     Actor.deferred { ctx ⇒
       import receptionist.Receptionist.Register
       ctx.system.receptionist ! Register(ServiceKey, ctx.self, ctx.system.deadLetters)
+
+      val screenWidth = maybeWidth getOrElse 80
+      ctx.system.log.info("Spawned printer with screen width = {}", screenWidth)
 
       Actor.immutable {
         (_, msg) ⇒ {
@@ -37,7 +40,7 @@ object Printer {
         printBit("Feed URL", feedURL)
         printBit("Entry URL", entryURL)
         printBit("Number of matches", matched.numMatches)
-        printBit("First of the matches", matched.firstWithContext)
+        printBit("One of the matches", matched.matchedSection)
         println("=" * screenWidth)
         flush()
       }

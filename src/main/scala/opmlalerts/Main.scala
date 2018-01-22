@@ -7,8 +7,6 @@ import scala.Console._
 import scala.io.StdIn
 import scala.util.Try
 
-import opmlalerts.Manager._
-
 object Main extends App {
   def exitWithError(error: String) = {
     println(s"${RESET}${BOLD}${RED}$error${RESET}")
@@ -23,8 +21,7 @@ object Main extends App {
   val opmlFile: File = Try { new File(opmlPathStr) } getOrEffect
     { e ⇒ exitWithError(s"'$opmlPathStr' is not a file: $e") }
 
-  val manager = manageActors(opmlFile)
-  val system = ActorSystem(manager, "opml-alerts")
+  val system = ActorSystem(Manager.manage(opmlFile), "opml-alerts")
 
   // TODO create printer
 

@@ -10,7 +10,8 @@ libraryDependencies ++= Seq(
   "ch.qos.logback" % "logback-classic" % "1.2.3",
   "com.rometools" % "rome" % "1.9.0",
   "com.rometools" % "rome-opml" % "1.9.0",
-  "org.scalaj" %% "scalaj-http" % "2.3.0"
+  "org.scalaj" %% "scalaj-http" % "2.3.0",
+  "org.scalaz" %% "scalaz-core" % "7.3.0-M19"
 )
 
 // test-related dependencies

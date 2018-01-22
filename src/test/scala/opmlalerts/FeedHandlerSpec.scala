@@ -10,7 +10,6 @@ import org.scalatest._
 import scala.concurrent.duration._
 
 import opmlalerts.FeedHandler._
-import opmlalerts.Messages.{ GetNewEntries, NewEntry }
 
 trait FeedHandlerSpec {
   val basicRSSFeed      = getClass.getResource("/lorem-ipsum.rss")
@@ -22,25 +21,28 @@ trait FeedHandlerSpec {
   //val pubDateAtomFeed   = getClass.getResource("/published-updated.atom")
 
   val nonExistentFeed   = new URL("file:///doesNotExist")
+
+  val now = time.Instant.now
 }
 
 object FeedHandlerBehaviorSpec extends FeedHandlerSpec {
+
   def parseTime(text: String) = {
     val formatter = time.format.DateTimeFormatter.RFC_1123_DATE_TIME
     time.ZonedDateTime.parse(text, formatter).toInstant
   }
 
-  implicit def feedHandlerDSL(feed: URL) = new {
-    def getNewSince(sinceStr: String) = {
-      val since = parseTime(sinceStr)
-      val testkit = BehaviorTestkit(getNewEntries(feed, since))
+  implicit class feedHandlerDSL(feed: URL) {
+    def getNewSince(timeStr: String) = {
+      val time = parseTime(timeStr)
+      val testkit = BehaviorTestkit(FeedHandler(feed) getNewEntriesSince time)
       val inbox = TestInbox[NewEntry]()
       testkit.run(GetNewEntries(inbox.ref))
       inbox.receiveAll
     }
 
     def havingGot[T](ids: Iterable[T]) =
-      ids map { id ⇒ NewEntry(feed, new URL(s"http://example.com/test/$id")) }
+      ids map { id ⇒ NewEntry(new URL(s"http://example.com/test/$id")) }
   }
 }
 
@@ -90,7 +92,7 @@ class FeedHandlerAsyncSpec extends TestKit(FeedHandlerAsyncSpec.config)
 
     "log a warning on parse failure" in {
       val probe = TestProbe[NewEntry]()
-      val feedHandler = spawn(getNewEntries(nonExistentFeed))
+      val feedHandler = spawn(FeedHandler(nonExistentFeed) getNewEntriesSince now)
 
       val logMsg = s"Feed '$nonExistentFeed' could not be parsed"
       val filter = EventFilter.warning(start = logMsg, occurrences = 1)

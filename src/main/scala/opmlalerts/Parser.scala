@@ -26,7 +26,7 @@ case class Parser(log: LoggingAdapter) {
   def parseOPML(opmlURL: File): Map[URL, FeedInfo] = this.OPML(opmlURL).parse()
   def parseFeed(feedURL: URL): Vector[FeedEntry] = this.Feed(feedURL).parse()
 
-  private case class OPML(opmlURL: File) {
+  case class OPML(opmlURL: File) {
 
     lazy val wfi = new WireFeedInput
 
@@ -51,7 +51,7 @@ case class Parser(log: LoggingAdapter) {
 
       lazy val defaultInterval = 1.minute
 
-      lazy val logDesc = s"associated with title ${titleAttr} from OPML '${opmlURL}'"
+      lazy val logDesc = s"associated with title ${titleAttr} and URL ${urlAttr} in OPML ${opmlURL}"
 
       def parseWith(partiallyConstructed: Map[URL, FeedInfo]) = {
          urlAttr match {
@@ -64,14 +64,20 @@ case class Parser(log: LoggingAdapter) {
             partiallyConstructed
           }
           case Success(feedURL) ⇒ {
-            val pattern = Option(outline.getAttributeValue("pattern")) map (_.r)
-            val interval = parseInterval()
-            partiallyConstructed + (feedURL → FeedInfo(titleAttr, pattern, interval))
+            partiallyConstructed +
+              (feedURL → FeedInfo(titleAttr, parsePattern(), parseInterval()))
           }
         }
       }
 
-      def parseInterval(): FiniteDuration = {
+      def parsePattern() = {
+        val pattern = Option(outline.getAttributeValue("pattern")) map (_.r)
+        if (pattern.isEmpty)
+          log.warning("No pattern {}", logDesc)   // XXX should be totally skippped, not even downloaded?
+        pattern
+      }
+
+      def parseInterval() = {
         val asDuration = Try { intervalAttr map (_.toInt) map (_.seconds) }
         if (asDuration.isFailure) {
           log.warning("Interval '{}' {} is not valid: {}",
@@ -82,7 +88,7 @@ case class Parser(log: LoggingAdapter) {
     }
   }
 
-  private case class Feed(feedURL: URL) {
+  case class Feed(feedURL: URL) {
 
     lazy val sfi = new SyndFeedInput
 
@@ -102,8 +108,8 @@ case class Parser(log: LoggingAdapter) {
     case class Entry(entry: RomeEntry) {
 
       lazy val dateAttr = {
-        Option(entry.getUpdatedDate) orElse
-          Option(entry.getPublishedDate) map (_.toInstant)
+        (Option(entry.getUpdatedDate) orElse
+          Option(entry.getPublishedDate)) map (_.toInstant)
       }
       lazy val urlAttr: Try[URL] = entry.getLink
 

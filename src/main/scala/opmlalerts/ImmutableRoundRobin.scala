@@ -8,17 +8,16 @@ import akka.actor.typed.scaladsl.Actor
 object ImmutableRoundRobin {
 
   def roundRobinBehavior[T](numberOfWorkers: Int, worker: Behavior[T]): Behavior[T] =
-    Actor.deferred { ctx =>
-      val workers = (1 to numberOfWorkers).map { n =>
+    Actor.deferred { ctx ⇒
+      val workers = (1 to numberOfWorkers).map { n ⇒
         ctx.spawn(worker, s"worker-$n")
       }
       activeRoutingBehavior(index = 0, workers)
     }
 
   private def activeRoutingBehavior[T](index: Long, workers: Seq[ActorRef[T]]): Behavior[T] =
-    Actor.immutable[T] { (ctx, msg) =>
+    Actor.immutable[T] { (ctx, msg) ⇒
       workers((index % workers.size).toInt) ! msg
       activeRoutingBehavior(index + 1, workers)
     }
-
 }

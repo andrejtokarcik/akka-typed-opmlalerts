@@ -3,35 +3,49 @@ package opmlalerts
 import akka.actor.typed._
 import akka.actor.typed.receptionist
 import akka.actor.typed.scaladsl.Actor
-
-import opmlalerts.Messages.{ PrintCommand, PrintResult }
+import java.net.URL
+import scala.Console._
 
 object Printer {
-  val ServiceKey = receptionist.ServiceKey[PrintCommand]("Printer")
+  sealed trait Command
+  final case class PrintMatch(feedTitle: Option[String],
+                               feedURL: URL,
+                               entryURL: URL,
+                               matchFound: EntryHandler.MatchFound)
+      extends Command
 
-  def printOnConsole(screenWidth: Int): Behavior[PrintCommand] = Actor.deferred { ctx ⇒
-    import receptionist.Receptionist.Register
-    ctx.system.receptionist ! Register(ServiceKey, ctx.self, ctx.system.deadLetters)
+  val ServiceKey = receptionist.ServiceKey[Command]("Printer")
 
-    Actor.immutable {
-      (_, msg) ⇒ {
-        doPrintOnConsole(screenWidth, msg)
-        Actor.same
+  def printOnConsole(screenWidth: Int = 80): Behavior[Command] =
+    Actor.deferred { ctx ⇒
+      import receptionist.Receptionist.Register
+      ctx.system.receptionist ! Register(ServiceKey, ctx.self, ctx.system.deadLetters)
+
+      Actor.immutable {
+        (_, msg) ⇒ {
+          doPrintOnConsole(msg, screenWidth)
+          Actor.same
+        }
       }
     }
-  }
 
-  private def doPrintOnConsole(screenWidth: Int, msg: PrintCommand) = {
+  def doPrintOnConsole(msg: Command, screenWidth: Int) = {
     msg match {
-      case PrintResult(feedTitle, entryURL, matchedSection) ⇒ {
-        import scala.Console._
-        println(s"${RESET}${BOLD}Feed title:${RESET} $feedTitle")
-        println(s"${RESET}${BOLD}Entry URL:${RESET} $entryURL")
-        println(s"${RESET}${BOLD}Matched section:${RESET}")
-        println(matchedSection)
-        print("=" * screenWidth)
+      case PrintMatch(feedTitle, feedURL, entryURL, matched) ⇒ {
+        if (feedTitle.isDefined)
+          printBit("Feed title", feedTitle.get)
+        printBit("Feed URL", feedURL)
+        printBit("Entry URL", entryURL)
+        printBit("Number of matches", matched.numMatches)
+        printBit("First of the matches", matched.firstWithContext)
+        println("=" * screenWidth)
         flush()
       }
     }
   }
+
+  private def printBit(desc: String, bit: Any) = {
+    println(s"${RESET}${BOLD}${desc}:${RESET} ${bit}")
+  }
+
 }

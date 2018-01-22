@@ -18,11 +18,12 @@ object Parser {
                             pattern: Option[Regex],
                             interval: FiniteDuration)
 
-  final case class FeedEntry(date: Instant, url: URL)
+  final case class FeedEntry(title: Option[String],
+                             date: Instant,
+                             url: URL)
 
   lazy val wfi = new WireFeedInput
   lazy val sfi = new SyndFeedInput
-
 }
 
 case class Parser(log: LoggingAdapter) {
@@ -120,6 +121,7 @@ case class Parser(log: LoggingAdapter) {
     
     case class Entry(entry: RomeEntry) {
 
+      lazy val titleAttr = Option(entry.getTitle)
       lazy val dateAttr = {
         (Option(entry.getUpdatedDate) orElse
           Option(entry.getPublishedDate)) map (_.toInstant)
@@ -139,7 +141,7 @@ case class Parser(log: LoggingAdapter) {
                 log.warning("URL from feed '{}' is not valid: {}", feedURL, e)
                 partiallyConstructed
               }
-              case Success(url) ⇒ partiallyConstructed :+ FeedEntry(date, url)
+              case Success(url) ⇒ partiallyConstructed :+ FeedEntry(titleAttr, date, url)
             }
           }
         }

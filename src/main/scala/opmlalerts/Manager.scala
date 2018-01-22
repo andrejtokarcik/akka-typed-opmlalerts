@@ -24,7 +24,7 @@ object Manager {
 
   private sealed trait Response extends Message
   private final case class NewEntryOfFeed(feedURL: URL,
-                                          entry: FeedHandler.NewEntry)
+                                          entry: Parser.FeedEntry)
       extends Response
   private final case class MatchFoundInEntry(entry: NewEntryOfFeed,
                                              matched: EntryHandler.MatchFound)
@@ -86,13 +86,15 @@ class Manager(ctx: ActorContext[Manager.Message])(opmlPath: Path) {
     }
   }
 
-  private lazy val newEntryAdapter =
-    Memo.immutableHashMapMemo[URL, ActorRef[FeedHandler.NewEntry]] { feedURL ⇒
-      val adapter = ctx.spawnAdapter {
-        entry: FeedHandler.NewEntry ⇒ NewEntryOfFeed(feedURL, entry)
+  private lazy val newEntryAdapter = {
+    import FeedHandler.NewEntry
+    Memo.immutableHashMapMemo[URL, ActorRef[NewEntry]] { feedURL ⇒
+      val adapter: ActorRef[NewEntry] = ctx.spawnAdapter {
+        case NewEntry(entry) ⇒ NewEntryOfFeed(feedURL, entry)
       }
       adapter
     }
+  }
 
   private lazy val matchFoundAdapter =
     Memo.immutableHashMapMemo[NewEntryOfFeed, ActorRef[EntryHandler.MatchFound]] { feedEntry ⇒
@@ -136,7 +138,7 @@ class Manager(ctx: ActorContext[Manager.Message])(opmlPath: Path) {
           ctx.system.log.warning("Attempting to PrintMatch but no printers registered")
 
         printers foreach
-          { _ ! Printer.PrintMatch(feedMap(feedURL).title, feedURL, entry.url, matched) }
+          { _ ! Printer.PrintMatch(feedURL, feedMap(feedURL), entry, matched) }
         Actor.same
       }
 

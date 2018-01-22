@@ -38,11 +38,11 @@ object FeedHandlerBehaviorSpec extends FeedHandlerSpec {
       val testkit = BehaviorTestkit(FeedHandler(feed) getNewEntriesSince time)
       val inbox = TestInbox[NewEntry]()
       testkit.run(GetNewEntries(inbox.ref))
-      inbox.receiveAll
+      inbox.receiveAll map { _.entry.url }
     }
 
     def havingGot[T](ids: Iterable[T]) =
-      ids map { id ⇒ NewEntry(new URL(s"http://example.com/test/$id")) }
+      ids map { id ⇒ new URL(s"http://example.com/test/$id") }
   }
 }
 

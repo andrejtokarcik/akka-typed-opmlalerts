@@ -8,10 +8,10 @@ import scala.Console._
 
 object Printer {
   sealed trait Command
-  final case class PrintMatch(feedTitle: Option[String],
-                               feedURL: URL,
-                               entryURL: URL,
-                               matchFound: EntryHandler.MatchFound)
+  final case class PrintMatch(feedURL: URL,
+                              feed: Parser.FeedInfo,
+                              entry: Parser.FeedEntry,
+                              matchFound: EntryHandler.MatchFound)
       extends Command
 
   val ServiceKey = receptionist.ServiceKey[Command]("Printer")
@@ -32,14 +32,19 @@ object Printer {
 
   def doPrintOnConsole(msg: Command, screenWidth: Int) = {
     msg match {
-      case PrintMatch(feedTitle, feedURL, entryURL, matched) ⇒ {
+      case PrintMatch(feedURL, feed, entry, matched) ⇒ {
         println("=" * screenWidth)
-        if (feedTitle.isDefined)
-          printBit("Feed title", feedTitle.get)
+        if (feed.title.isDefined)
+          printBit("Feed title", feed.title.get)
         printBit("Feed URL", feedURL)
-        printBit("Entry URL", entryURL)
+        if (entry.title.isDefined)
+          printBit("Entry title", entry.title.get)
+        printBit("Entry URL", entry.url)
+        printBit("Entry updated", entry.date)
+        if (feed.pattern.isDefined)
+          printBit("Pattern", feed.pattern.get)
         printBit("Number of matches", matched.numMatches)
-        printBit("One of the matches", matched.matchedSection)
+        printBit("Sample match", matched.matchedSection)
         println("=" * screenWidth)
         flush()
       }

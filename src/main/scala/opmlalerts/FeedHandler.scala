@@ -10,7 +10,7 @@ object FeedHandler {
   final case class GetNewEntries(replyTo: ActorRef[NewEntry])
       extends Command
 
-  final case class NewEntry(url: URL)
+  final case class NewEntry(entry: Parser.FeedEntry)
 }
 
 case class FeedHandler(feedURL: URL) {
@@ -23,7 +23,7 @@ case class FeedHandler(feedURL: URL) {
 
       val entries = Parser(ctx.system.log).parseFeed(feedURL)
       val newEntries = entries filter { _.date isAfter lastPoll }
-      newEntries foreach { entry ⇒ replyTo ! NewEntry(entry.url) }
+      newEntries foreach { replyTo ! NewEntry(_) }
       ctx.system.log.debug("Feed {} has {} new entries", feedURL, newEntries.length)
 
       getNewEntriesSince(pollTime)

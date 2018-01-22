@@ -50,7 +50,7 @@ case class Parser(log: LoggingAdapter) {
     case class Outline(outline: RomeOutline) {
 
       lazy val titleAttr = Option(outline.getTitle) orElse Option(outline.getText)
-      lazy val urlAttr: Try[URL] = outline.getUrl
+      lazy val urlAttr = Try { new URL(outline.getUrl) }
       lazy val patternAttr = Option(outline.getAttributeValue("pattern"))
       lazy val intervalAttr = Option(outline.getAttributeValue("interval"))
 
@@ -126,7 +126,7 @@ case class Parser(log: LoggingAdapter) {
         (Option(entry.getUpdatedDate) orElse
           Option(entry.getPublishedDate)) map (_.toInstant)
       }
-      lazy val urlAttr: Try[URL] = entry.getLink
+      lazy val urlAttr = Try { new URL(entry.getLink) }
 
       def parseWith(partiallyConstructed: Vector[FeedEntry]) = {
         dateAttr match {

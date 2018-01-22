@@ -19,13 +19,18 @@ object Main extends App {
     sys.exit(1)
   }
 
-  val opmlPathStr = args.headOption getOrElse exitWithError("Specify path to an OPML file")
+  val opmlPathStr =
+    args.headOption getOrElse exitWithError("Specify path to an OPML file")
+
   val opmlPath = {
-    Try { Paths.get(opmlPathStr) } getOrEffect
-      { e ⇒ exitWithError(s"'$opmlPathStr' is not a path: $e") }
+    val t = Try { Paths.get(opmlPathStr) }
+    if (t.isFailure)
+      exitWithError(s"'$opmlPathStr' is not a valid path: ${t.failed.get}")
+    t.get
   }
 
-  def spawnManager(ctx: ActorContext[EventAtPath]) = ctx.spawnAnonymous(Manager.manage(opmlPath))
+  def spawnManager(ctx: ActorContext[EventAtPath]) =
+    ctx.spawnAnonymous(Manager.manage(opmlPath))
 
   val root: Behavior[EventAtPath] = Actor.deferred { ctx ⇒
     val screenWidth = Try { "tput cols".!!.trim.toInt }.toOption

@@ -1,11 +1,13 @@
 package opmlalerts
 
 import akka.actor.typed._
+import akka.actor.typed.scaladsl.Actor
 import java.io.File
 //import java.nio.file.Path
 import scala.Console._
 import scala.io.StdIn
 import scala.util.Try
+import sys.process._
 
 object Main extends App {
   def exitWithError(error: String) = {
@@ -21,9 +23,17 @@ object Main extends App {
   val opmlFile: File = Try { new File(opmlPathStr) } getOrEffect
     { e ⇒ exitWithError(s"'$opmlPathStr' is not a file: $e") }
 
-  val system = ActorSystem(Manager.manage(opmlFile), "opml-alerts")
+  val screenWidth = Try { "tput cols".!!.trim.toInt }.toOption
 
-  // TODO create printer
+  val root: Behavior[akka.NotUsed] =
+    Actor.deferred { ctx ⇒
+      ctx.spawn(Manager.manage(opmlFile), "manager")
+      ctx.spawn(Printer.printOnConsole(screenWidth), "printer")
+
+      Actor.empty
+    }
+
+  val system = ActorSystem(root, "opmlalerts")
 
   try {
     println(s"${RESET}${BOLD}*** Press ENTER to exit the system${RESET}")

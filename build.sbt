@@ -11,7 +11,8 @@ libraryDependencies ++= Seq(
   "com.rometools" % "rome" % "1.9.0",
   "com.rometools" % "rome-opml" % "1.9.0",
   "org.scalaz" %% "scalaz-core" % "7.2.18",
-  "net.ruippeixotog" %% "scala-scraper" % "2.1.0"
+  "net.ruippeixotog" %% "scala-scraper" % "2.1.0",
+  "com.beachape.filemanagement" %% "schwatcher" % "0.3.5"
 )
 
 // test-related dependencies

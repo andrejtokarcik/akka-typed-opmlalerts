@@ -4,7 +4,7 @@ import akka.event.LoggingAdapter
 import com.rometools.opml.feed.opml.{ Opml ⇒ RomeOPML, Outline ⇒ RomeOutline }
 import com.rometools.rome.feed.synd.{ SyndEntry ⇒ RomeEntry }
 import com.rometools.rome.io.{ SyndFeedInput, WireFeedInput, XmlReader }
-import java.io.File
+import java.nio.file.Path
 import java.net.URL
 import java.time.Instant
 import scala.collection.JavaConverters._
@@ -13,27 +13,30 @@ import scala.util.matching.Regex
 import scala.util.{ Try, Success, Failure }
 
 object Parser {
+
   final case class FeedInfo(title: Option[String],
                             pattern: Option[Regex],
                             interval: FiniteDuration)
 
   final case class FeedEntry(date: Instant, url: URL)
+
+  lazy val wfi = new WireFeedInput
+  lazy val sfi = new SyndFeedInput
+
 }
 
 case class Parser(log: LoggingAdapter) {
   import Parser._
 
-  def parseOPML(opmlFile: File): Map[URL, FeedInfo] = this.OPML(opmlFile).parse()
+  def parseOPML(opmlPath: Path): Map[URL, FeedInfo] = this.OPML(opmlPath).parse()
   def parseFeed(feedURL: URL): Vector[FeedEntry] = this.Feed(feedURL).parse()
 
-  case class OPML(opmlFile: File) {
-
-    lazy val wfi = new WireFeedInput
+  case class OPML(opmlPath: Path) {
 
     def parse(): Map[URL, FeedInfo] = {
-      Try ({ wfi build new XmlReader(opmlFile) }.asInstanceOf[RomeOPML]) match {
+      Try ({ wfi build new XmlReader(opmlPath.toFile) }.asInstanceOf[RomeOPML]) match {
         case Failure(e) ⇒ {
-          log.error("OPML {} could not be parsed: {}", opmlFile, e)
+          log.error("OPML {} could not be parsed: {}", opmlPath, e)
           Map()
         }
         case Success(opml) ⇒ opml.getOutlines.asScala.foldLeft(Map(): Map[URL, FeedInfo]) {
@@ -56,7 +59,7 @@ case class Parser(log: LoggingAdapter) {
         val titleDesc = titleAttr map { s ⇒ s"title '$s'" } getOrElse ""
         val urlDesc = Option(outline.getUrl) map { s ⇒ s"URL '$s'" } getOrElse ""
         val and = if (titleAttr.isDefined && urlAttr.isSuccess) " and " else ""
-        s"associated with ${titleDesc}${and}${urlDesc} in OPML ${opmlFile}"
+        s"associated with ${titleDesc}${and}${urlDesc} in OPML ${opmlPath}"
       }
 
       def parseWith(partiallyConstructed: Map[URL, FeedInfo]) = {
@@ -101,8 +104,6 @@ case class Parser(log: LoggingAdapter) {
   }
 
   case class Feed(feedURL: URL) {
-
-    lazy val sfi = new SyndFeedInput
 
     def parse(): Vector[FeedEntry] = {
       Try { sfi build new XmlReader(feedURL) } match {

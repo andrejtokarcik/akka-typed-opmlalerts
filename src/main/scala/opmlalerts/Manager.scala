@@ -3,7 +3,7 @@ package opmlalerts
 import akka.actor.typed._
 import akka.actor.typed.receptionist.Receptionist
 import akka.actor.typed.scaladsl.{ Actor, ActorContext }
-import java.io.File
+import java.nio.file.Path
 import java.net.URL
 import java.time.{ Duration, Instant }
 import scala.concurrent.duration._
@@ -30,21 +30,21 @@ object Manager {
                                              matched: EntryHandler.MatchFound)
       extends Response
 
-  def manage(opmlFile: File): Behavior[Message] =
-    Actor.deferred { ctx ⇒ new Manager(opmlFile)(ctx).manage() }
+  def manage(opmlPath: Path): Behavior[Message] =
+    Actor.deferred { ctx ⇒ new Manager(ctx)(opmlPath).manage() }
 }
 
-class Manager(opmlFile: File)(implicit val ctx: ActorContext[Manager.Message]) {
+class Manager(ctx: ActorContext[Manager.Message])(opmlPath: Path) {
   import Manager._
 
   val firstPoll = Instant.now
 
-  val feedMap = Parser(ctx.system.log).parseOPML(opmlFile)
+  val feedMap = Parser(ctx.system.log).parseOPML(opmlPath)
 
   type FeedHandlerMap = Map[URL, ActorRef[FeedHandler.Command]]
   lazy val feedHandlers = {
     ctx.system.log.debug("Spawning {} feed handlers (one per feed)", feedMap.size)
-    def sanitize(url: URL) = url.toString.replace('/', ',').replace('?', '!')
+    def sanitize(url: URL) = url.toString.replace('/', '-').replace('?', '!')
     feedMap.keysIterator.map(url ⇒
       url → ctx.spawn(FeedHandler(url) getNewEntriesSince firstPoll,
                       s"FeedHandler-${sanitize(url)}")

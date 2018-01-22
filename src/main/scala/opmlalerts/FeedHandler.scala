@@ -16,13 +16,13 @@ object FeedHandler {
 case class FeedHandler(feedURL: URL) {
   import FeedHandler._
 
-  def getNewEntriesSince(lastPolled: Instant): Behavior[Command] =
+  def getNewEntriesSince(lastPoll: Instant): Behavior[Command] =
     Actor.immutable { case (ctx, GetNewEntries(replyTo)) ⇒
       ctx.system.log.info("Fetching and parsing feed '{}'", feedURL)
       val pollTime = Instant.now
 
       val entries = Parser(ctx.system.log).parseFeed(feedURL)
-      val newEntries = entries filter { _.date isAfter lastPolled }
+      val newEntries = entries filter { _.date isAfter lastPoll }
       newEntries foreach { entry ⇒ replyTo ! NewEntry(entry.url) }
       ctx.system.log.info("Feed '{}' had {} new entries", feedURL, newEntries.length)
 

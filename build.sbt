@@ -1,4 +1,4 @@
-name := "akka-opml-alerts"
+name := "akka-typed-opmlalerts"
 
 scalaVersion := "2.12.4"
 

@@ -47,6 +47,7 @@ case class Parser(log: LoggingAdapter) {
 
       lazy val titleAttr = Option(outline.getTitle) orElse Option(outline.getText)
       lazy val urlAttr: Try[URL] = outline.getUrl
+      lazy val patternAttr = Option(outline.getAttributeValue("pattern"))
       lazy val intervalAttr = Option(outline.getAttributeValue("interval"))
 
       lazy val defaultInterval = 1.minute
@@ -57,7 +58,7 @@ case class Parser(log: LoggingAdapter) {
          urlAttr match {
           case Failure(e) ⇒ {
             if (outline.getChildren.asScala.nonEmpty)  // TODO need to step in recursively
-              log.info("Skipping an outline group {}", logDesc)
+              log.info("Skipping outline group {}", logDesc)
             else
               log.warning("URL {} is not valid: {}", logDesc, e)
 
@@ -71,9 +72,14 @@ case class Parser(log: LoggingAdapter) {
       }
 
       def parsePattern() = {
-        val pattern = Option(outline.getAttributeValue("pattern")) map (_.r)
+        val asRegex = Try { patternAttr map (_.r) }
+        if (asRegex.isFailure) {
+          log.warning("Pattern '{}' {} is not valid: {}",
+                      patternAttr.get, logDesc, asRegex.failed.get)
+        }
+        val pattern = asRegex.toOption.flatten
         if (pattern.isEmpty)
-          log.warning("No pattern {}", logDesc)   // XXX should be totally skippped, not even downloaded?
+          log.warning("No pattern {}", logDesc)   // TODO should be totally skippped, not even downloaded?
         pattern
       }
 

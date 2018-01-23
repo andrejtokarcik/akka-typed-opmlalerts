@@ -24,7 +24,7 @@ case class FeedHandler(feedURL: URL) {
       val entries = Parser(ctx.system.log).parseFeed(feedURL)
       val newEntries = entries filter { _.date isAfter lastPoll }
       newEntries foreach { replyTo ! NewEntry(_) }
-      ctx.system.log.debug("Feed {} has {} new entries", feedURL, newEntries.length)
+      ctx.system.log.info("Feed {} has {} new entries", feedURL, newEntries.length)
 
       getNewEntriesSince(pollTime)
     }

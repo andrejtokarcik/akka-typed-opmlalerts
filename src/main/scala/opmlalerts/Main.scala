@@ -58,7 +58,7 @@ object Main extends App {
   val system = ActorSystem(root, "opmlalerts")
 
   try {
-    println(s"${RESET}${BOLD}*** Press ENTER to exit the system${RESET}")
+    println(s"${RESET}${BOLD}***** Press ENTER to exit the system${RESET}")
     StdIn.readLine()
   } finally {
     val _ = system.terminate()

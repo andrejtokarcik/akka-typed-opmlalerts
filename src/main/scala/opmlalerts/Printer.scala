@@ -25,6 +25,7 @@ object Printer {
       Actor.immutable {
         (_, msg) ⇒ {
           doPrintOnConsole(msg, screenWidth)
+          Thread.sleep(1000)  // avoid flooding
           Actor.same
         }
       }

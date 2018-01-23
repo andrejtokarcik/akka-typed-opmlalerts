@@ -50,21 +50,22 @@ case class Parser(log: LoggingAdapter) {
     case class Outline(outline: RomeOutline) {
 
       lazy val titleAttr = Option(outline.getTitle) orElse Option(outline.getText)
-      lazy val urlAttr = Try { new URL(outline.getUrl) }
+      lazy val urlAttr = Option(outline.getUrl) orElse Option(outline.getXmlUrl) orElse
+                         Option(outline.getHtmlUrl)
       lazy val patternAttr = Option(outline.getAttributeValue("pattern"))
       lazy val intervalAttr = Option(outline.getAttributeValue("interval"))
 
-      lazy val defaultInterval = 1.minute
+      lazy val defaultInterval = 60.seconds
 
       lazy val logDesc = {
         val titleDesc = titleAttr map { s ⇒ s"title '$s'" } getOrElse ""
         val urlDesc = Option(outline.getUrl) map { s ⇒ s"URL '$s'" } getOrElse ""
-        val and = if (titleAttr.isDefined && urlAttr.isSuccess) " and " else ""
+        val and = if (titleAttr.isDefined && urlAttr.isDefined) " and " else ""
         s"associated with ${titleDesc}${and}${urlDesc} in OPML ${opmlPath}"
       }
 
       def parseWith(partiallyConstructed: Map[URL, FeedInfo]) = {
-         urlAttr match {
+         Try { new URL(urlAttr.get) } match {
           case Failure(e) ⇒ {
             if (outline.getChildren.asScala.nonEmpty) {  // TODO need to step in recursively
               log.warning("Skipping outline group {}", logDesc)
@@ -89,7 +90,7 @@ case class Parser(log: LoggingAdapter) {
         }
         val pattern = asRegex.toOption.flatten
         if (pattern.isEmpty)
-          log.warning("No pattern {}", logDesc)   // TODO should be totally skippped, not even downloaded?
+          log.warning("No pattern {}", logDesc)  // TODO should not be added to feedMap?
         pattern
       }
 

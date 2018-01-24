@@ -25,7 +25,7 @@ trait FeedHandlerSpec {
   val now = time.Instant.now
 }
 
-object FeedHandlerBehaviorSpec extends FeedHandlerSpec {
+object FeedHandlerSyncSpec extends FeedHandlerSpec {
 
   def parseTime(text: String) = {
     val formatter = time.format.DateTimeFormatter.RFC_1123_DATE_TIME
@@ -46,8 +46,8 @@ object FeedHandlerBehaviorSpec extends FeedHandlerSpec {
   }
 }
 
-class FeedHandlerBehaviorSpec extends WordSpec with Matchers {
-  import FeedHandlerBehaviorSpec._
+class FeedHandlerSyncSpec extends WordSpec with Matchers {
+  import FeedHandlerSyncSpec._
 
   "getNewEntries (qua behavior)" should {
 

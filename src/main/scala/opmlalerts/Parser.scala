@@ -95,7 +95,7 @@ case class Parser(log: LoggingAdapter) {
       }
 
       def parseInterval() = {
-        val asDuration = Try { intervalAttr map (_.toInt) map (_.seconds) }
+        val asDuration = Try { intervalAttr map (_.toInt.seconds) }
         if (asDuration.isFailure) {
           log.warning("Interval '{}' {} is not valid: {}",
                       intervalAttr.get, logDesc, asDuration.failed.get)

@@ -25,7 +25,7 @@ Parsing of both the OPML files and the RSS/Atom feeds is delegated to the [ROME 
 
 OPML Alerts is guided by the following special attributes of the `<outline />` tag:
 
-* `pattern`: A mandatory attribute for the feed to be considered by OPML Alerts. Defines the regular expression to be matched against the text content of feed entries.  See the documentation for [`java.util.regex.Pattern`](https://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html) for details about the regular expression syntax.
+* `pattern`: A mandatory attribute for the feed to be considered by OPML Alerts. Defines the regular expression to be matched against the text content of feed entries.  See the documentation for [`java.util.regex.Pattern`](https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html) for details about the regular expression syntax.
 * `interval`: An optional attribute. Determines the length of interval in seconds between two consecutive pollings of the feed. Defaults to 60 seconds.
 
 Regarding the common attributes of `<outline />`, only a `url`/`xmlUrl`/`htmlUrl` is strictly necessary. Nonetheless, presence of other attributes (such as `title` or `text`) may lead to more informative result reports.
@@ -35,7 +35,7 @@ Regarding the common attributes of `<outline />`, only a `url`/`xmlUrl`/`htmlUrl
 
 1. When started, OPML Alerts spawns a [`Manager`](src/main/scala/opmlalerts/Manager.scala) actor that oversees all the stages and serves as a common communication point for all the other actors.
 2. The ROME-based [`Parser`](src/main/scala/opmlalerts/Parser.scala) class is called to parse the input OPML file.
-3. `Manager` dedicates a separate [`FeedHandler`](src/main/scala/opmlalerts/FeedHandler.scala) actors to each feed.
+3. `Manager` dedicates a separate [`FeedHandler`](src/main/scala/opmlalerts/FeedHandler.scala) actor to each feed.
 4. A pool of [`EntryHandler`s](src/main/scala/opmlalerts/EntryHandler.scala) is also spawned; these are fungible and not tied to particular feeds.
 5. A collection of internal timers is set up to trigger feed re-fetching whereupon the associated `FeedHandler` GETs the feed URL and sends the yet-unseen entries back to the `Manager`.
 6. The entries are distributed among the `EntryHandler`s by a [round-robin scheduler](src/main/scala/opmlalerts/ImmutableRoundRobin.scala).

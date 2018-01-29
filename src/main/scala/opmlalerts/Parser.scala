@@ -13,7 +13,6 @@ import scala.util.matching.Regex
 import scala.util.{ Try, Success, Failure }
 
 object Parser {
-
   final case class FeedInfo(title: Option[String],
                             pattern: Option[Regex],
                             interval: FiniteDuration)
@@ -24,6 +23,8 @@ object Parser {
 
   lazy val wfi = new WireFeedInput
   lazy val sfi = new SyndFeedInput
+
+  def quote[T](o: Option[T]) = o map (x ⇒ s"'$x'") getOrElse "<unspecified>"
 }
 
 case class Parser(log: LoggingAdapter) {
@@ -49,19 +50,18 @@ case class Parser(log: LoggingAdapter) {
 
     case class Outline(outline: RomeOutline) {
 
-      lazy val titleAttr = Option(outline.getTitle) orElse Option(outline.getText)
-      lazy val urlAttr = Option(outline.getUrl) orElse Option(outline.getXmlUrl) orElse
-                         Option(outline.getHtmlUrl)
-      lazy val patternAttr = Option(outline.getAttributeValue("pattern"))
+      lazy val titleAttr    = Option(outline.getTitle) orElse Option(outline.getText)
+      lazy val urlAttr      = Option(outline.getUrl) orElse Option(outline.getXmlUrl) orElse
+                              Option(outline.getHtmlUrl)
+      lazy val patternAttr  = Option(outline.getAttributeValue("pattern"))
       lazy val intervalAttr = Option(outline.getAttributeValue("interval"))
 
       lazy val defaultInterval = 60.seconds
 
       lazy val logDesc = {
-        val titleDesc = titleAttr map { s ⇒ s"title '$s'" } getOrElse ""
-        val urlDesc = Option(outline.getUrl) map { s ⇒ s"URL '$s'" } getOrElse ""
-        val and = if (titleAttr.isDefined && urlAttr.isDefined) " and " else ""
-        s"associated with ${titleDesc}${and}${urlDesc} in OPML ${opmlPath}"
+        val titleDesc = s"title ${quote(titleAttr)}"
+        val urlDesc = s"URL ${quote(urlAttr)}"
+        s"associated with ${titleDesc} and ${urlDesc} in OPML ${opmlPath}"
       }
 
       def parseWith(partiallyConstructed: Map[URL, FeedInfo]) = {
@@ -70,8 +70,7 @@ case class Parser(log: LoggingAdapter) {
             if (outline.getChildren.asScala.nonEmpty) {  // TODO need to step in recursively
               log.warning("Skipping outline group {}", logDesc)
             } else {
-              val urlStr = Option(outline.getUrl) getOrElse ""
-              log.warning("URL {} {} is not valid: {}", urlStr, logDesc, e)
+              log.warning("URL '{}' {} is not valid: {}", quote(urlAttr), logDesc, e)
             }
             partiallyConstructed
           }
@@ -110,7 +109,7 @@ case class Parser(log: LoggingAdapter) {
     def parse(): Vector[FeedEntry] = {
       Try { sfi build new XmlReader(feedURL) } match {
         case Failure(e) ⇒ {
-          log.warning("Feed '{}' could not be parsed: {}", feedURL, e)
+          log.warning("Feed {} could not be parsed: {}", feedURL, e)
           Vector()
         }
         case Success(feed) ⇒ feed.getEntries.asScala.foldLeft(Vector(): Vector[FeedEntry]) {
@@ -123,23 +122,21 @@ case class Parser(log: LoggingAdapter) {
     case class Entry(entry: RomeEntry) {
 
       lazy val titleAttr = Option(entry.getTitle)
-      lazy val dateAttr = {
-        (Option(entry.getUpdatedDate) orElse
-          Option(entry.getPublishedDate)) map (_.toInstant)
-      }
-      lazy val urlAttr = Try { new URL(entry.getLink) }
+      lazy val dateAttr  = Option(entry.getUpdatedDate) orElse Option(entry.getPublishedDate)
+      lazy val urlAttr   = Option(entry.getLink)
 
       def parseWith(partiallyConstructed: Vector[FeedEntry]) = {
-        dateAttr match {
+        dateAttr map (_.toInstant) match {
           case None ⇒ {
-            log.warning("Feed '{}' contains entry with missing/corrupted date: {}",
-                        feedURL, entry.getLink)
+            log.warning("Feed {} contains entry with missing/corrupted date: {}",
+                        feedURL, quote(dateAttr))
             partiallyConstructed
           }
           case Some(date) ⇒ {
-            urlAttr match {
+            Try { new URL(urlAttr.get) } match {
               case Failure(e) ⇒ {
-                log.warning("URL from feed '{}' is not valid: {}", feedURL, e)
+                log.warning("Feed {} contains entry with missing/corrupted URL: {} -- {}",
+                            feedURL, quote(urlAttr), e)
                 partiallyConstructed
               }
               case Success(url) ⇒ partiallyConstructed :+ FeedEntry(titleAttr, date, url)

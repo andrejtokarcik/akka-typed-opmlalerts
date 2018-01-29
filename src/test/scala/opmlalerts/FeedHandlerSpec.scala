@@ -94,7 +94,7 @@ class FeedHandlerAsyncSpec extends TestKit(FeedHandlerAsyncSpec.config)
       val probe = TestProbe[NewEntry]()
       val feedHandler = spawn(FeedHandler(nonExistentFeed) getNewEntriesSince now)
 
-      val logMsg = s"Feed '$nonExistentFeed' could not be parsed"
+      val logMsg = s"Feed $nonExistentFeed could not be parsed"
       val filter = EventFilter.warning(start = logMsg, occurrences = 1)
       system.eventStream publish TestEvent.Mute(filter)
 

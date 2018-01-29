@@ -18,7 +18,7 @@ case class FeedHandler(feedURL: URL) {
 
   def getNewEntriesSince(lastPoll: Instant): Behavior[Command] =
     Actor.immutable { case (ctx, GetNewEntries(replyTo)) ⇒
-      ctx.system.log.debug("Fetching and parsing feed '{}'", feedURL)
+      ctx.system.log.debug("Fetching and parsing feed {}", feedURL)
       val pollTime = Instant.now
 
       val entries = Parser(ctx.system.log).parseFeed(feedURL)

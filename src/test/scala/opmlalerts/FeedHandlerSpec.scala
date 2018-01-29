@@ -15,9 +15,7 @@ trait FeedHandlerSpec {
   val corruptedURLFeed  = getClass.getResource("/corrupted-url.rss")
   val unparsableFeed    = getClass.getResource("/unparsable.rss")
 
-  val nonExistentFeed   = new URL("file:///doesNotExist")
-
-  val now = time.Instant.now
+  val nonExistentFeed   = getClass.getResource("/doesNotExist")
 }
 
 object FeedHandlerSyncSpec extends FeedHandlerSpec {
@@ -27,7 +25,7 @@ object FeedHandlerSyncSpec extends FeedHandlerSpec {
     time.ZonedDateTime.parse(text, formatter).toInstant
   }
 
-  implicit class feedHandlerDSL(feed: URL) {
+  implicit class FeedDSL(feed: URL) {
     def getNewSince(timeStr: String) = {
       val time = parseTime(timeStr)
       val testkit = BehaviorTestkit(FeedHandler(feed) getNewEntriesSince time)
@@ -72,8 +70,6 @@ class FeedHandlerSyncSpec extends WordSpecLike with Matchers {
 }
 
 object FeedHandlerAsyncSpec extends FeedHandlerSpec {
-  val expectTimeout = 500.millis
-
   val unparsable = (feed: URL) ⇒ s"Feed $feed could not be parsed"
   val corruptedDate = (feed: URL) ⇒ s"Feed $feed contains entry with missing/corrupted date"
   val corruptedURL = (feed: URL) ⇒ s"Feed $feed contains entry with missing/corrupted URL"
@@ -83,12 +79,14 @@ class FeedHandlerAsyncSpec extends TestKitExt with WordSpecLike {
   import FeedHandlerAsyncSpec._
 
   implicit class FeedDSL(feed: URL) {
+    val someTime = time.Instant.now
+
     def shouldLogWarning(msg: URL ⇒ String) =
       shouldLogWarnings(1, msg)
 
     def shouldLogWarnings(num: Int, msg: URL ⇒ String) = {
+      val feedHandler = spawn(FeedHandler(feed) getNewEntriesSince someTime)
       val probe = TestProbe[NewEntry]()
-      val feedHandler = spawn(FeedHandler(feed) getNewEntriesSince now)
       expectWarning(msg(feed), num) {
         feedHandler ! GetNewEntries(probe.ref)
       }
@@ -96,7 +94,7 @@ class FeedHandlerAsyncSpec extends TestKitExt with WordSpecLike {
   }
 
   "getNewEntriesSince (qua actor)" should {
-    "log a warning when feed does not exist" in {
+    "log a warning when feed cannot be retrieved" in {
       nonExistentFeed shouldLogWarning unparsable
     }
 

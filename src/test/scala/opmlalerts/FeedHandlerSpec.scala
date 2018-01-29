@@ -2,8 +2,6 @@ package opmlalerts
 
 import akka.testkit.typed._
 import akka.testkit.typed.scaladsl._
-import akka.testkit.{ EventFilter, TestEvent }
-import com.typesafe.config.ConfigFactory
 import java.net.URL
 import java.time
 import org.scalatest._
@@ -12,13 +10,10 @@ import scala.concurrent.duration._
 import opmlalerts.FeedHandler._
 
 trait FeedHandlerSpec {
-  val basicRSSFeed      = getClass.getResource("/lorem-ipsum.rss")
-  val corruptedRSSFeed  = getClass.getResource("/date-corrupted.rss")
-  val unparsableRSSFeed = getClass.getResource("/unparsable.rss")
-
-  //val basicAtomFeed     = getClass.getResource("/sample.atom")
-  //val corruptedAtomFeed = getClass.getResource("/date-corrupted.rss")
-  //val pubDateAtomFeed   = getClass.getResource("/published-updated.atom")
+  val basicFeed         = getClass.getResource("/lorem-ipsum.rss")
+  val corruptedDateFeed = getClass.getResource("/corrupted-date.rss")
+  val corruptedURLFeed  = getClass.getResource("/corrupted-url.rss")
+  val unparsableFeed    = getClass.getResource("/unparsable.rss")
 
   val nonExistentFeed   = new URL("file:///doesNotExist")
 
@@ -40,67 +35,81 @@ object FeedHandlerSyncSpec extends FeedHandlerSpec {
       testkit.run(GetNewEntries(inbox.ref))
       inbox.receiveAll map { _.entry.url }
     }
-
-    def havingGot[T](ids: Iterable[T]) =
-      ids map { id ⇒ new URL(s"http://example.com/test/$id") }
   }
+
+  def exampleEntries[T](ids: T*) =
+    ids map { id ⇒ new URL(s"http://example.com/test/$id") }
 }
 
-class FeedHandlerSyncSpec extends WordSpec with Matchers {
+class FeedHandlerSyncSpec extends WordSpecLike with Matchers {
   import FeedHandlerSyncSpec._
 
-  "getNewEntries (qua behavior)" should {
+  "getNewEntriesSince (qua behavior)" should {
 
-    "emit a NewEntry per new item (RSS)" in {
-      val received = basicRSSFeed getNewSince "Tue, 16 Jan 2018 02:45:50 GMT"
-      val expected = basicRSSFeed havingGot Vector(1516070880, 1516070820, 1516070760)
+    "emit a NewEntry per new item" in {
+      val received = basicFeed getNewSince "Tue, 16 Jan 2018 02:45:50 GMT"
+      val expected = exampleEntries(1516070880, 1516070820, 1516070760)
       received shouldEqual expected
     }
 
     "emit no NewEntry if no new items" in {
-      val received = basicRSSFeed getNewSince "Tue, 16 Jan 2018 02:48:16 GMT"
+      val received = basicFeed getNewSince "Tue, 16 Jan 2018 02:48:16 GMT"
       received shouldBe empty
     }
 
-    "emit NewEntry's only for entries with incorrupted dates (RSS)" in {
-      val received = corruptedRSSFeed getNewSince "Tue, 16 Jan 2018 02:43:30 GMT"
-      val expected = corruptedRSSFeed havingGot Vector(1516070760)
+    "emit NewEntry's only for entries with incorrupted dates" in {
+      val received = corruptedDateFeed getNewSince "Tue, 16 Jan 2018 02:43:30 GMT"
+      val expected = exampleEntries(1516070760)
+      received shouldEqual expected
+    }
+
+    "emit NewEntry's only for entries with incorrupted URLs" in {
+      val received = corruptedURLFeed getNewSince "Tue, 16 Jan 2018 02:44:30 GMT"
+      val expected = exampleEntries(1516070820)
       received shouldEqual expected
     }
   }
 }
 
 object FeedHandlerAsyncSpec extends FeedHandlerSpec {
-  // NOTE: Although the `ActorContextSpec` suite does use `typed.loggers`,
-  // the option does not seem to be taken into account and the old `loggers`
-  // must be specified instead.
-  val config = ConfigFactory.parseString(
-    """|akka {
-       |  loglevel = WARNING
-       |  loggers = ["akka.testkit.TestEventListener"]
-       |}""".stripMargin)
-
   val expectTimeout = 500.millis
+
+  val unparsable = (feed: URL) ⇒ s"Feed $feed could not be parsed"
+  val corruptedDate = (feed: URL) ⇒ s"Feed $feed contains entry with missing/corrupted date"
+  val corruptedURL = (feed: URL) ⇒ s"Feed $feed contains entry with missing/corrupted URL"
 }
 
-class FeedHandlerAsyncSpec extends TestKit(FeedHandlerAsyncSpec.config)
-  with WordSpecLike with BeforeAndAfterAll {
-
+class FeedHandlerAsyncSpec extends TestKitExt with WordSpecLike {
   import FeedHandlerAsyncSpec._
 
-  "getNewEntries (qua actor)" should {
+  implicit class FeedDSL(feed: URL) {
+    def shouldLogWarning(msg: URL ⇒ String) =
+      shouldLogWarnings(1, msg)
 
-    "log a warning on parse failure" in {
+    def shouldLogWarnings(num: Int, msg: URL ⇒ String) = {
       val probe = TestProbe[NewEntry]()
-      val feedHandler = spawn(FeedHandler(nonExistentFeed) getNewEntriesSince now)
+      val feedHandler = spawn(FeedHandler(feed) getNewEntriesSince now)
+      expectWarning(msg(feed), num) {
+        feedHandler ! GetNewEntries(probe.ref)
+      }
+    }
+  }
 
-      val logMsg = s"Feed $nonExistentFeed could not be parsed"
-      val filter = EventFilter.warning(start = logMsg, occurrences = 1)
-      system.eventStream publish TestEvent.Mute(filter)
+  "getNewEntriesSince (qua actor)" should {
+    "log a warning when feed does not exist" in {
+      nonExistentFeed shouldLogWarning unparsable
+    }
 
-      feedHandler ! GetNewEntries(probe.ref)
-      probe.expectNoMsg(expectTimeout)
-      filter.assertDone(expectTimeout)
+    "log a warning when feed cannot be parsed" in {
+      unparsableFeed shouldLogWarning unparsable
+    }
+
+    "log a warning when feed contains corrupted date fields" in {
+      corruptedDateFeed shouldLogWarnings (3, corruptedDate)
+    }
+
+    "log a warning when feed contains corrupted URL fields" in {
+      corruptedURLFeed shouldLogWarnings (3, corruptedURL)
     }
   }
 }

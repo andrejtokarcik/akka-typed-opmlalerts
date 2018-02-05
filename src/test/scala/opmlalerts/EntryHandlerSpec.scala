@@ -4,7 +4,6 @@ import akka.testkit.typed._
 import akka.testkit.typed.scaladsl._
 import java.net.URL
 import java.time
-import org.scalatest._
 import scala.concurrent.duration._
 import scala.util.matching.Regex
 
@@ -27,7 +26,7 @@ object EntryHandlerSyncSpec extends EntryHandlerSpec {
   }
 }
 
-class EntryHandlerSyncSpec extends WordSpecLike with Matchers {
+class EntryHandlerSyncSpec extends CustomSyncSpec {
   import EntryHandlerSyncSpec._
 
   "scanEntry (qua behavior)" should {
@@ -48,7 +47,7 @@ object EntryHandlerAsyncSpec extends EntryHandlerSpec {
   val irretrievable = (entry: URL) ⇒ s"Entry $entry could not be retrieved"
 }
 
-class EntryHandlerAsyncSpec extends TestKitExt with WordSpecLike {
+class EntryHandlerAsyncSpec extends CustomAsyncSpec {
   import EntryHandlerAsyncSpec._
 
   implicit class PageDSL(page: URL) {

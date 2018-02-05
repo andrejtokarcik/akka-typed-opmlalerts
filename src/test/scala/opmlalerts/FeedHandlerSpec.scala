@@ -4,7 +4,6 @@ import akka.testkit.typed._
 import akka.testkit.typed.scaladsl._
 import java.net.URL
 import java.time
-import org.scalatest._
 import scala.concurrent.duration._
 
 import opmlalerts.FeedHandler._
@@ -39,7 +38,7 @@ object FeedHandlerSyncSpec extends FeedHandlerSpec {
     ids map { id ⇒ new URL(s"http://example.com/test/$id") }
 }
 
-class FeedHandlerSyncSpec extends WordSpecLike with Matchers {
+class FeedHandlerSyncSpec extends CustomSyncSpec {
   import FeedHandlerSyncSpec._
 
   "getNewEntriesSince (qua behavior)" should {
@@ -75,7 +74,7 @@ object FeedHandlerAsyncSpec extends FeedHandlerSpec {
   val corruptedURL = (feed: URL) ⇒ s"Feed $feed contains entry with missing/corrupted URL"
 }
 
-class FeedHandlerAsyncSpec extends TestKitExt with WordSpecLike {
+class FeedHandlerAsyncSpec extends CustomAsyncSpec {
   import FeedHandlerAsyncSpec._
 
   implicit class FeedDSL(feed: URL) {

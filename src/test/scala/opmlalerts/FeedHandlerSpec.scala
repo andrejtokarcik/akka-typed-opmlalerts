@@ -66,7 +66,7 @@ object FeedHandlerAsyncSpec {
   val corruptedURL = (feed: URL) ⇒ s"Feed $feed contains entry with missing/corrupted URL"
 }
 
-class FeedHandlerAsyncSpec extends CommonAsyncSpec with FeedHandlerSpec {
+class FeedHandlerAsyncSpec extends CommonTestKit with FeedHandlerSpec {
   import FeedHandlerAsyncSpec._
   import TestFeeds._
 

@@ -15,7 +15,7 @@ object Printer {
 
   val ServiceKey = receptionist.ServiceKey[Command]("Printer")
 
-  def printOnConsole(maybeWidth: Option[Int], register: Boolean = true): Behavior[Command] =
+  def printOnConsole(maybeWidth: Option[Int] = None, register: Boolean = true): Behavior[Command] =
     Actor.deferred { ctx ⇒
       if (register) {
         import receptionist.Receptionist.Register
@@ -32,12 +32,9 @@ object Printer {
       }
     }
 
-  type PrintFun = String ⇒ Unit
-
-  def doPrint(msg: Command, screenWidth: Int)(implicit printFun: PrintFun) = {
-    def printField(desc: String, field: Any) = {
+  def doPrint(msg: Command, screenWidth: Int)(implicit printFun: String ⇒ Unit) = {
+    def printField(desc: String, field: Any) =
       printFun(s"${fansi.Bold.On(desc)}: $field")
-    }
 
     msg match {
       case PrintMatch(feedURL, feed, entry, matched) ⇒ {

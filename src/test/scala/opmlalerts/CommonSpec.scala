@@ -9,7 +9,8 @@ import java.time.Instant
 import org.scalatest._
 import scala.concurrent.duration._
 
-sealed trait CommonSpec {
+// TODO mix in TypeCheckedTripleEquals
+sealed trait CommonSpec extends WordSpecLike with Matchers with BeforeAndAfterAll {
   val someTime = Instant.now
   val someInterval = 1.minute
 
@@ -29,9 +30,14 @@ sealed trait CommonSpec {
   }
 }
 
-trait CommonSyncSpec extends CommonSpec with WordSpecLike with Matchers
+trait CommonSyncSpec extends CommonSpec
 
-object CommonAsyncSpec {
+trait CommonAsyncSpec extends CommonSpec {
+  self: TestKit ⇒
+  override protected def afterAll(): Unit = shutdown()
+}
+
+object CommonTestKit {
   // NOTE: Although the `ActorContextSpec` suite does use `typed.loggers`,
   // the option does not seem to be taken into account and the old-style
   // `loggers` must be specified instead.
@@ -42,7 +48,7 @@ object CommonAsyncSpec {
        |}""".stripMargin)
 }
 
-abstract class CommonAsyncSpec extends TestKit(CommonAsyncSpec.config) with CommonSpec with WordSpecLike {
+abstract class CommonTestKit extends TestKit(CommonTestKit.config) with CommonAsyncSpec {
   def expectWarning[T](msg: String, num: Int = 1)(block: ⇒ T) = {
     val filter = EventFilter.warning(start = msg, occurrences = num)
     filterEvents(filter)(block)(system.toUntyped)

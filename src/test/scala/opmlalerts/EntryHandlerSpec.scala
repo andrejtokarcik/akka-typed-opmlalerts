@@ -43,7 +43,7 @@ object EntryHandlerAsyncSpec {
   val irretrievable = (entry: URL) ⇒ s"Entry $entry could not be retrieved"
 }
 
-class EntryHandlerAsyncSpec extends CommonAsyncSpec with EntryHandlerSpec {
+class EntryHandlerAsyncSpec extends CommonTestKit with EntryHandlerSpec {
   import EntryHandlerAsyncSpec._
   import TestPages._
 

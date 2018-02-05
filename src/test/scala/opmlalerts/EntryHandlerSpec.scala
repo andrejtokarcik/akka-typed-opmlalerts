@@ -4,7 +4,6 @@ import akka.testkit.typed._
 import akka.testkit.typed.scaladsl._
 import java.net.URL
 import java.time
-import scala.concurrent.duration._
 import scala.util.matching.Regex
 
 import opmlalerts.EntryHandler._

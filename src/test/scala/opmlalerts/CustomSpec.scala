@@ -5,9 +5,14 @@ import akka.testkit.typed._
 import akka.testkit.typed.scaladsl._
 import akka.testkit.{ EventFilter, filterEvents }
 import com.typesafe.config.ConfigFactory
+import java.time.Instant
 import org.scalatest._
+import scala.concurrent.duration._
 
-sealed trait CustomSpec
+sealed trait CustomSpec {
+  val someTime = Instant.now
+  val someInterval = 1.minute
+}
 
 trait CustomSyncSpec extends WordSpecLike with Matchers
   with CustomSpec

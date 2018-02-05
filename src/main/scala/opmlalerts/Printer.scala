@@ -15,25 +15,33 @@ object Printer {
 
   val ServiceKey = receptionist.ServiceKey[Command]("Printer")
 
-  def printOnConsole(maybeWidth: Option[Int]): Behavior[Command] =
+  def printOnConsole(maybeWidth: Option[Int], register: Boolean = true): Behavior[Command] =
     Actor.deferred { ctx ⇒
-      import receptionist.Receptionist.Register
-      ctx.system.receptionist ! Register(ServiceKey, ctx.self, ctx.system.deadLetters)
+      if (register) {
+        import receptionist.Receptionist.Register
+        ctx.system.receptionist ! Register(ServiceKey, ctx.self, ctx.system.deadLetters)
+      }
 
       val screenWidth = maybeWidth getOrElse 80
       Actor.immutable {
         (_, msg) ⇒ {
-          doPrintOnConsole(msg, screenWidth)
+          doPrint(msg, screenWidth)(println)
           Thread.sleep(1000)  // avoid flooding
           Actor.same
         }
       }
     }
 
-  def doPrintOnConsole(msg: Command, screenWidth: Int) = {
+  type PrintFun = String ⇒ Unit
+
+  def doPrint(msg: Command, screenWidth: Int)(implicit printFun: PrintFun) = {
+    def printField(desc: String, field: Any) = {
+      printFun(s"${fansi.Bold.On(desc)}: $field")
+    }
+
     msg match {
       case PrintMatch(feedURL, feed, entry, matched) ⇒ {
-        println("=" * screenWidth)
+        printFun("=" * screenWidth)
         if (feed.title.isDefined)
           printField("Feed title", feed.title.get)
         printField("Feed URL", feedURL)
@@ -45,13 +53,8 @@ object Printer {
           printField("Pattern", feed.pattern.get)
         printField("Number of matches", matched.numMatches)
         printField("Sample match", matched.matchedSection)
-        println("=" * screenWidth)
+        printFun("=" * screenWidth)
       }
     }
   }
-
-  private def printField(desc: String, field: Any) = {
-    println(s"${fansi.Bold.On(desc)}: $field")
-  }
-
 }

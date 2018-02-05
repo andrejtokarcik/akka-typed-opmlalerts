@@ -4,7 +4,6 @@ import akka.testkit.typed._
 import akka.testkit.typed.scaladsl._
 import java.net.URL
 import java.time
-import scala.concurrent.duration._
 
 import opmlalerts.FeedHandler._
 
@@ -78,8 +77,6 @@ class FeedHandlerAsyncSpec extends CustomAsyncSpec {
   import FeedHandlerAsyncSpec._
 
   implicit class FeedDSL(feed: URL) {
-    val someTime = time.Instant.now
-
     def shouldLogWarning(msg: URL ⇒ String) =
       shouldLogWarnings(1, msg)
 

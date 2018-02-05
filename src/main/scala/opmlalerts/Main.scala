@@ -7,7 +7,6 @@ import com.beachape.filemanagement.Messages._
 import com.beachape.filemanagement.MonitorActor
 import java.nio.file.Paths
 import java.nio.file.StandardWatchEventKinds._
-import scala.Console._
 import scala.io.StdIn
 import scala.util.Try
 import sys.process._
@@ -15,7 +14,7 @@ import sys.process._
 object Main extends App {
 
   def exitWithError(error: String) = {
-    println(s"${RESET}${BOLD}${RED}$error${RESET}")
+    println(fansi.Bold.On(fansi.Color.Red(error)))
     sys.exit(1)
   }
 
@@ -58,7 +57,7 @@ object Main extends App {
   val system = ActorSystem(root, "opmlalerts")
 
   try {
-    println(s"${RESET}${BOLD}***** Press ENTER to exit the system${RESET}")
+    println(fansi.Bold.On("***** Press ENTER to exit the system"))
     StdIn.readLine()
   } finally {
     val _ = system.terminate()

@@ -4,7 +4,6 @@ import akka.actor.typed._
 import akka.actor.typed.receptionist
 import akka.actor.typed.scaladsl.Actor
 import java.net.URL
-import scala.Console._
 
 object Printer {
   sealed trait Command
@@ -36,24 +35,23 @@ object Printer {
       case PrintMatch(feedURL, feed, entry, matched) ⇒ {
         println("=" * screenWidth)
         if (feed.title.isDefined)
-          printBit("Feed title", feed.title.get)
-        printBit("Feed URL", feedURL)
+          printField("Feed title", feed.title.get)
+        printField("Feed URL", feedURL)
         if (entry.title.isDefined)
-          printBit("Entry title", entry.title.get)
-        printBit("Entry URL", entry.url)
-        printBit("Entry updated", entry.date)
+          printField("Entry title", entry.title.get)
+        printField("Entry URL", entry.url)
+        printField("Entry updated", entry.date)
         if (feed.pattern.isDefined)
-          printBit("Pattern", feed.pattern.get)
-        printBit("Number of matches", matched.numMatches)
-        printBit("Sample match", matched.matchedSection)
+          printField("Pattern", feed.pattern.get)
+        printField("Number of matches", matched.numMatches)
+        printField("Sample match", matched.matchedSection)
         println("=" * screenWidth)
-        flush()
       }
     }
   }
 
-  private def printBit(desc: String, bit: Any) = {
-    println(s"${RESET}${BOLD}${desc}:${RESET} ${bit}")
+  private def printField(desc: String, field: Any) = {
+    println(s"${fansi.Bold.On(desc)}: $field")
   }
 
 }

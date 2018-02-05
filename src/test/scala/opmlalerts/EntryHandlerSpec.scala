@@ -8,13 +8,9 @@ import scala.util.matching.Regex
 
 import opmlalerts.EntryHandler._
 
-trait EntryHandlerSpec {
-  val basicPage       = getClass.getResource("/moby-dick.html")
+sealed trait EntryHandlerSpec
 
-  val nonExistentPage = getClass.getResource("/doesNotExist")
-}
-
-object EntryHandlerSyncSpec extends EntryHandlerSpec {
+object EntryHandlerSyncSpec {
   implicit class EntryDSL(page: URL) {
     def scannedFor(pattern: String) = {
       val testkit = BehaviorTestkit(EntryHandler.scanEntry)
@@ -25,8 +21,9 @@ object EntryHandlerSyncSpec extends EntryHandlerSpec {
   }
 }
 
-class EntryHandlerSyncSpec extends CustomSyncSpec {
+class EntryHandlerSyncSpec extends CommonSyncSpec with EntryHandlerSpec {
   import EntryHandlerSyncSpec._
+  import TestPages._
 
   "scanEntry (qua behavior)" should {
     "emit a MatchFound when entry matched by pattern" in {
@@ -42,12 +39,13 @@ class EntryHandlerSyncSpec extends CustomSyncSpec {
   }
 }
 
-object EntryHandlerAsyncSpec extends EntryHandlerSpec {
+object EntryHandlerAsyncSpec {
   val irretrievable = (entry: URL) ⇒ s"Entry $entry could not be retrieved"
 }
 
-class EntryHandlerAsyncSpec extends CustomAsyncSpec {
+class EntryHandlerAsyncSpec extends CommonAsyncSpec with EntryHandlerSpec {
   import EntryHandlerAsyncSpec._
+  import TestPages._
 
   implicit class PageDSL(page: URL) {
     val somePattern = ".*".r

@@ -7,17 +7,9 @@ import java.time
 
 import opmlalerts.FeedHandler._
 
-trait FeedHandlerSpec {
-  val basicFeed         = getClass.getResource("/lorem-ipsum.rss")
-  val corruptedDateFeed = getClass.getResource("/corrupted-date.rss")
-  val corruptedURLFeed  = getClass.getResource("/corrupted-url.rss")
-  val unparsableFeed    = getClass.getResource("/unparsable.rss")
+sealed trait FeedHandlerSpec
 
-  val nonExistentFeed   = getClass.getResource("/doesNotExist")
-}
-
-object FeedHandlerSyncSpec extends FeedHandlerSpec {
-
+object FeedHandlerSyncSpec {
   def parseTime(text: String) = {
     val formatter = time.format.DateTimeFormatter.RFC_1123_DATE_TIME
     time.ZonedDateTime.parse(text, formatter).toInstant
@@ -37,8 +29,9 @@ object FeedHandlerSyncSpec extends FeedHandlerSpec {
     ids map { id ⇒ new URL(s"http://example.com/test/$id") }
 }
 
-class FeedHandlerSyncSpec extends CustomSyncSpec {
+class FeedHandlerSyncSpec extends CommonSyncSpec with FeedHandlerSpec {
   import FeedHandlerSyncSpec._
+  import TestFeeds._
 
   "getNewEntriesSince (qua behavior)" should {
 
@@ -67,14 +60,15 @@ class FeedHandlerSyncSpec extends CustomSyncSpec {
   }
 }
 
-object FeedHandlerAsyncSpec extends FeedHandlerSpec {
+object FeedHandlerAsyncSpec {
   val unparsable = (feed: URL) ⇒ s"Feed $feed could not be parsed"
   val corruptedDate = (feed: URL) ⇒ s"Feed $feed contains entry with missing/corrupted date"
   val corruptedURL = (feed: URL) ⇒ s"Feed $feed contains entry with missing/corrupted URL"
 }
 
-class FeedHandlerAsyncSpec extends CustomAsyncSpec {
+class FeedHandlerAsyncSpec extends CommonAsyncSpec with FeedHandlerSpec {
   import FeedHandlerAsyncSpec._
+  import TestFeeds._
 
   implicit class FeedDSL(feed: URL) {
     def shouldLogWarning(msg: URL ⇒ String) =

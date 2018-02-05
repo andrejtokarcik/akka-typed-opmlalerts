@@ -20,7 +20,7 @@ object PrinterSyncSpec extends PrinterSpec {
   val testkit = BehaviorTestkit(printOnConsole(screenWidth, register = false))
 }
 
-class PrinterSyncSpec extends CustomSyncSpec {
+class PrinterSyncSpec extends CommonSyncSpec {
   import PrinterSyncSpec._
 
   "printOnConsole (qua behavior)" should {

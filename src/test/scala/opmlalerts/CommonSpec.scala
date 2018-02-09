@@ -49,8 +49,15 @@ object CommonTestKit {
 }
 
 abstract class CommonTestKit extends TestKit(CommonTestKit.config) with CommonAsyncSpec {
+  implicit lazy val untypedSystem = system.toUntyped 
+
   def expectWarning[T](msg: String, num: Int = 1)(block: ⇒ T) = {
     val filter = EventFilter.warning(start = msg, occurrences = num)
-    filterEvents(filter)(block)(system.toUntyped)
+    filterEvents(filter)(block)
+  }
+  
+  def expectWarningOfPattern[T](pattern: String, num: Int = 1)(block: ⇒ T) = {
+    val filter = EventFilter.warning(pattern = pattern, occurrences = num)
+    filterEvents(filter)(block)
   }
 }

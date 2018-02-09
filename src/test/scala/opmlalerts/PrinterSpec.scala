@@ -68,11 +68,10 @@ class PrinterSyncSpec extends CommonSyncSpec with PrinterSpec {
   }
 }
 
-class PrinterAsyncSpec extends CommonTestKit {
+class PrinterAsyncSpec extends CommonTestKit with PrinterSpec {
   "printOnConsole (qua actor)" should {
     "register with the receptionist when spawned" in {
-      expectWarning("received dead letter without sender: " +
-                    "Registered(ServiceKey[opmlalerts.Printer$Command](Printer)") {
+      expectWarningOfPattern(raw"Registered\(ServiceKey\[opmlalerts\.Printer\$$Command\]\(Printer\)") {
         spawn(printOnConsole())
       }
     }

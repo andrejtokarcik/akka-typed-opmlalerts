@@ -16,27 +16,31 @@ object Printer {
   val ServiceKey = receptionist.ServiceKey[Command]("Printer")
 
   def printOnConsole(maybeWidth: Option[Int] = None, register: Boolean = true): Behavior[Command] =
-    Actor.deferred { ctx ⇒
-      if (register) {
-        import receptionist.Receptionist.Register
-        ctx.system.receptionist ! Register(ServiceKey, ctx.self, ctx.system.deadLetters)
-      }
+    Actor.deferred[Any] { ctx ⇒
+      import receptionist.Receptionist.{ Register, Registered }
+      if (register)
+        ctx.system.receptionist ! Register(ServiceKey, ctx.self, ctx.self)
 
       val screenWidth = maybeWidth getOrElse 80
-      Actor.immutable {
-        (_, msg) ⇒ {
-          doPrint(msg, screenWidth)(println)
-          Thread.sleep(1000)  // avoid flooding
-          Actor.same
+      Actor.immutable { (ctx, msg) ⇒
+        msg match {
+          case Registered(key, instance) if key == ServiceKey && instance == ctx.self ⇒
+            Actor.unhandled
+
+          case cmd: Command ⇒ {
+            doPrinterCommand(cmd, screenWidth)(println)
+            Thread.sleep(1000)  // avoid flooding
+            Actor.same
+          }
         }
       }
-    }
+    }.narrow[Command]
 
-  def doPrint(msg: Command, screenWidth: Int)(implicit printFun: String ⇒ Unit) = {
+  def doPrinterCommand(cmd: Command, screenWidth: Int)(implicit printFun: String ⇒ Unit) = {
     def printField(desc: String, field: Any) =
       printFun(s"${fansi.Bold.On(desc)}: $field")
 
-    msg match {
+    cmd match {
       case PrintMatch(feedURL, feed, entry, matched) ⇒ {
         printFun("=" * screenWidth)
         if (feed.title.isDefined)

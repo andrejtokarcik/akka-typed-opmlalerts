@@ -2,7 +2,7 @@ package opmlalerts
 
 import akka.actor.typed._
 import akka.actor.typed.receptionist.Receptionist
-import akka.actor.typed.scaladsl.{ Actor, ActorContext }
+import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import java.nio.file.Path
 import java.net.URL
 import java.time.{ Duration, Instant }
@@ -31,7 +31,7 @@ object Manager {
       extends Response
 
   def manage(opmlPath: Path): Behavior[Message] =
-    Actor.deferred { ctx ⇒ new Manager(ctx)(opmlPath).manage() }
+    Behaviors.setup { ctx ⇒ new Manager(ctx)(opmlPath).manage() }
 }
 
 class Manager(ctx: ActorContext[Manager.Message])(opmlPath: Path) {
@@ -60,10 +60,9 @@ class Manager(ctx: ActorContext[Manager.Message])(opmlPath: Path) {
   }
 
   def subscribeToPrinters() = {
-    import Receptionist.Listing
     ctx.system.log.debug("Subscribing to Printer instantiations")
-    val adapter: ActorRef[Listing[Printer.Command]] = ctx.spawnAdapter {
-      case Listing(_, newPrinters) ⇒ RegisterPrinters(newPrinters)
+    val adapter: ActorRef[Receptionist.Listing] = ctx.messageAdapter {
+      case Printer.ServiceKey.Listing(newPrinters) ⇒ RegisterPrinters(newPrinters)
     }
     ctx.system.receptionist !
       Receptionist.Subscribe(Printer.ServiceKey, adapter)
@@ -72,11 +71,11 @@ class Manager(ctx: ActorContext[Manager.Message])(opmlPath: Path) {
   def manage(): Behavior[Message] = {
     if (feedMap.isEmpty) {
       ctx.system.log.error("No valid feeds -- no action until the OPML is updated")
-      return Actor.empty
+      return Behaviors.empty
     }
 
     subscribeToPrinters()
-    Actor.withTimers { timers ⇒
+    Behaviors.withTimers { timers ⇒
       timers.startPeriodicTimer(ReportTimeSinceLastPoll, ReportTimeSinceLastPoll, 10.seconds)
       // TODO timer interval configurable per feed group
       for ((feedURL, feedInfo) ← feedMap)
@@ -86,10 +85,14 @@ class Manager(ctx: ActorContext[Manager.Message])(opmlPath: Path) {
     }
   }
 
+  // FIXME This might not work as expected after upgrade to Akka 2.5.11 because
+  // `messageAdapter` can now spawn only one adapter per message class whereas
+  // the original idea here was to provide a standalone adapter facing each of
+  // the FeedHandler actors (all of which reply with a NewEntry message).
   private lazy val newEntryAdapter = {
     import FeedHandler.NewEntry
     Memo.immutableHashMapMemo[URL, ActorRef[NewEntry]] { feedURL ⇒
-      val adapter: ActorRef[NewEntry] = ctx.spawnAdapter {
+      val adapter: ActorRef[NewEntry] = ctx.messageAdapter {
         case NewEntry(entry) ⇒ NewEntryOfFeed(feedURL, entry)
       }
       adapter
@@ -98,7 +101,7 @@ class Manager(ctx: ActorContext[Manager.Message])(opmlPath: Path) {
 
   private lazy val matchFoundAdapter =
     Memo.immutableHashMapMemo[NewEntryOfFeed, ActorRef[EntryHandler.MatchFound]] { feedEntry ⇒
-      val adapter = ctx.spawnAdapter {
+      val adapter = ctx.messageAdapter {
         matched: EntryHandler.MatchFound ⇒ MatchFoundInEntry(feedEntry, matched)
       }
       adapter
@@ -106,48 +109,50 @@ class Manager(ctx: ActorContext[Manager.Message])(opmlPath: Path) {
 
   private def behavior(printers: Seq[ActorRef[Printer.Command]],
                        lastPoll: Instant, lastFeed: Option[URL]): Behavior[Message] =
-    Actor.immutable {
-      case (ctx, RegisterPrinters(newPrinters)) ⇒ {
-        ctx.system.log.debug("Registering new printers {}", newPrinters)
-        newPrinters foreach
-          { printer ⇒ ctx.watchWith(printer, UnregisterPrinter(printer)) }
-        behavior(printers ++ newPrinters, lastPoll, lastFeed)
-      }
+    Behaviors.immutable { (ctx, msg) ⇒
+      msg match {
+        case RegisterPrinters(newPrinters) ⇒ {
+          ctx.system.log.debug("Registering new printers {}", newPrinters)
+          newPrinters foreach
+            { printer ⇒ ctx.watchWith(printer, UnregisterPrinter(printer)) }
+          behavior(printers ++ newPrinters, lastPoll, lastFeed)
+        }
 
-      case (ctx, UnregisterPrinter(printer)) ⇒ {
-        ctx.system.log.debug("Unregistering printer {}", printer)
-        behavior(printers filter (_ != printer), lastPoll, lastFeed)
-      }
+        case UnregisterPrinter(printer) ⇒ {
+          ctx.system.log.debug("Unregistering printer {}", printer)
+          behavior(printers filter (_ != printer), lastPoll, lastFeed)
+        }
 
-      case (ctx, PollFeed(feedURL)) ⇒ {
-        ctx.system.log.info("Polling feed {} (after {})", feedURL, feedMap(feedURL).interval)
-        val adapter = newEntryAdapter(feedURL)
-        feedHandlers(feedURL) ! FeedHandler.GetNewEntries(adapter)
-        behavior(printers, Instant.now, Some(feedURL))
-      }
+        case PollFeed(feedURL) ⇒ {
+          ctx.system.log.info("Polling feed {} (after {})", feedURL, feedMap(feedURL).interval)
+          val adapter = newEntryAdapter(feedURL)
+          feedHandlers(feedURL) ! FeedHandler.GetNewEntries(adapter)
+          behavior(printers, Instant.now, Some(feedURL))
+        }
 
-      case (_, feedEntry @ NewEntryOfFeed(feedURL, entry)) ⇒ {
-        val adapter = matchFoundAdapter(feedEntry)
-        feedMap(feedURL).pattern foreach
-          { entryHandlerPool ! EntryHandler.ScanEntry(entry.url, _, adapter) }
-        Actor.same
-      }
+        case feedEntry @ NewEntryOfFeed(feedURL, entry) ⇒ {
+          val adapter = matchFoundAdapter(feedEntry)
+          feedMap(feedURL).pattern foreach
+            { entryHandlerPool ! EntryHandler.ScanEntry(entry.url, _, adapter) }
+          Behaviors.same
+        }
 
-      case (ctx, MatchFoundInEntry(NewEntryOfFeed(feedURL, entry), matched)) ⇒ {
-        if (printers.isEmpty)
-          ctx.system.log.warning("Attempting to PrintMatch but no printers registered")
+        case MatchFoundInEntry(NewEntryOfFeed(feedURL, entry), matched) ⇒ {
+          if (printers.isEmpty)
+            ctx.system.log.warning("Attempting to PrintMatch but no printers registered")
 
-        printers foreach
-          { _ ! Printer.PrintMatch(feedURL, feedMap(feedURL), entry, matched) }
-        Actor.same
-      }
+          printers foreach
+            { _ ! Printer.PrintMatch(feedURL, feedMap(feedURL), entry, matched) }
+          Behaviors.same
+        }
 
-      case (ctx, ReportTimeSinceLastPoll) ⇒ {
-        // Converting java.time.Duration to Scala representation for better output format
-        val duration = Duration.between(lastPoll, Instant.now).getSeconds.seconds
-        val feedInfo = lastFeed map (feed ⇒ s" (of feed $feed)")
-        ctx.system.log.info("Last poll{} {} ago", feedInfo getOrElse "", duration)
-        Actor.same
+        case ReportTimeSinceLastPoll ⇒ {
+          // Converting java.time.Duration to Scala representation for better output format
+          val duration = Duration.between(lastPoll, Instant.now).getSeconds.seconds
+          val feedInfo = lastFeed map (feed ⇒ s" (of feed $feed)")
+          ctx.system.log.info("Last poll{} {} ago", feedInfo getOrElse "", duration)
+          Behaviors.same
+        }
       }
     }
 }

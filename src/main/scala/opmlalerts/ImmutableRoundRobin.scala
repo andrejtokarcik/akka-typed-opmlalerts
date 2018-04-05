@@ -1,14 +1,14 @@
 package opmlalerts
 
 import akka.actor.typed.{ ActorRef, Behavior }
-import akka.actor.typed.scaladsl.Actor
+import akka.actor.typed.scaladsl.Behaviors
 
 // Based on https://github.com/patriknw/akka-typed-blog/blob/master/src/main/scala/blog/typed/scaladsl/ImmutableRoundRobin.scala
 
 object ImmutableRoundRobin {
 
   def roundRobinBehavior[T](numberOfWorkers: Int, worker: Behavior[T]): Behavior[T] =
-    Actor.deferred { ctx ⇒
+    Behaviors.setup { ctx ⇒
       val workers = (1 to numberOfWorkers).map { n ⇒
         ctx.spawn(worker, s"worker-$n")
       }
@@ -16,7 +16,7 @@ object ImmutableRoundRobin {
     }
 
   private def activeRoutingBehavior[T](index: Long, workers: Seq[ActorRef[T]]): Behavior[T] =
-    Actor.immutable[T] { (ctx, msg) ⇒
+    Behaviors.immutable[T] { (ctx, msg) ⇒
       workers((index % workers.size).toInt) ! msg
       activeRoutingBehavior(index + 1, workers)
     }

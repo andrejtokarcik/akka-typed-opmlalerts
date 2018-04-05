@@ -1,7 +1,7 @@
 package opmlalerts
 
 import akka.actor.typed._
-import akka.actor.typed.scaladsl.{ Actor, ActorContext }
+import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import akka.actor.typed.scaladsl.adapter._
 import com.beachape.filemanagement.Messages._
 import com.beachape.filemanagement.MonitorActor
@@ -31,7 +31,7 @@ object Main extends App {
   def spawnManager(ctx: ActorContext[EventAtPath]) =
     ctx.spawnAnonymous(Manager.manage(opmlPath))
 
-  val root: Behavior[EventAtPath] = Actor.deferred { ctx ⇒
+  val root: Behavior[EventAtPath] = Behaviors.setup { ctx ⇒
     val screenWidth = Try { "tput cols".!!.trim.toInt }.toOption
     ctx.system.log.debug("Spawning printer with screen width = {}", screenWidth)
     ctx.spawn(Printer.printOnConsole(screenWidth), "printer")
@@ -46,7 +46,7 @@ object Main extends App {
   }
 
   def restarter(manager: ActorRef[Manager.Message]): Behavior[EventAtPath] =
-    Actor.immutable {
+    Behaviors.immutable {
       case (ctx, _: EventAtPath) ⇒ {
         ctx.system.log.info("OPML {} updated, restarting", opmlPath)
         ctx.stop(manager)

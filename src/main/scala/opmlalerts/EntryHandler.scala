@@ -1,7 +1,7 @@
 package opmlalerts
 
 import akka.actor.typed._
-import akka.actor.typed.scaladsl.Actor
+import akka.actor.typed.scaladsl.Behaviors
 import java.net.URL
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import scala.util.matching.Regex
@@ -17,7 +17,7 @@ object EntryHandler {
   final case class MatchFound(matchedSection: String, numMatches: Int)
 
   def scanEntry: Behavior[Command] =
-    Actor.immutable {
+    Behaviors.immutable {
       case (ctx, ScanEntry(entryURL, pattern, replyTo)) ⇒ {
         ctx.system.log.debug("Scanning entry {} for pattern '{}'", entryURL, pattern)
         scanWithBrowser(entryURL, pattern.withContext) match {
@@ -27,7 +27,7 @@ object EntryHandler {
           case Failure(fail) ⇒
             ctx.system.log.warning("Entry {} could not be retrieved: {}", entryURL, fail)
         }
-        Actor.same
+        Behaviors.same
       }
     }
 

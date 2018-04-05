@@ -1,8 +1,8 @@
 package opmlalerts
 
 import akka.actor.typed._
-import akka.actor.typed.receptionist
-import akka.actor.typed.scaladsl.Actor
+import akka.actor.typed.receptionist.Receptionist
+import akka.actor.typed.scaladsl.Behaviors
 import java.net.URL
 
 object Printer {
@@ -16,21 +16,20 @@ object Printer {
   val ServiceKey = receptionist.ServiceKey[Command]("Printer")
 
   def printOnConsole(maybeWidth: Option[Int] = None, register: Boolean = true): Behavior[Command] =
-    Actor.deferred[Any] { ctx ⇒
-      import receptionist.Receptionist.{ Register, Registered }
+    Behaviors.setup[Any] { ctx ⇒
       if (register)
-        ctx.system.receptionist ! Register(ServiceKey, ctx.self, ctx.self)
+        ctx.system.receptionist ! Receptionist.Register(ServiceKey, ctx.self.narrow, ctx.self.narrow)
 
       val screenWidth = maybeWidth getOrElse 80
-      Actor.immutable { (ctx, msg) ⇒
+      Behaviors.immutable { (ctx, msg) ⇒
         msg match {
-          case Registered(key, instance) if key == ServiceKey && instance == ctx.self ⇒
-            Actor.unhandled
+          case ServiceKey.Registered(instance) if instance == ctx.self ⇒
+            Behaviors.unhandled
 
           case cmd: Command ⇒ {
             doPrinterCommand(cmd, screenWidth)(println)
             Thread.sleep(1000)  // avoid flooding
-            Actor.same
+            Behaviors.same
           }
         }
       }

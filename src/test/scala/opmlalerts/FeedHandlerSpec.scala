@@ -18,9 +18,9 @@ object FeedHandlerSyncSpec {
   implicit class FeedDSL(feed: URL) {
     def getNewSince(timeStr: String) = {
       val time = parseTime(timeStr)
-      val testkit = BehaviorTestkit(FeedHandler(feed) getNewEntriesSince time)
+      val testKit = BehaviorTestKit(FeedHandler(feed) getNewEntriesSince time)
       val inbox = TestInbox[NewEntry]()
-      testkit.run(GetNewEntries(inbox.ref))
+      testKit.run(GetNewEntries(inbox.ref))
       inbox.receiveAll map { _.entry.url }
     }
   }

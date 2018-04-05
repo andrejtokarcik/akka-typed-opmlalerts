@@ -13,9 +13,9 @@ sealed trait EntryHandlerSpec
 object EntryHandlerSyncSpec {
   implicit class EntryDSL(page: URL) {
     def scannedFor(pattern: String) = {
-      val testkit = BehaviorTestkit(EntryHandler.scanEntry)
+      val testKit = BehaviorTestKit(EntryHandler.scanEntry)
       val inbox = TestInbox[MatchFound]()
-      testkit.run(ScanEntry(page, pattern.r, inbox.ref))
+      testKit.run(ScanEntry(page, pattern.r, inbox.ref))
       inbox.receiveAll
     }
   }

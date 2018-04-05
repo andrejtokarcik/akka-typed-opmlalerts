@@ -1,7 +1,7 @@
 package opmlalerts
 
 import akka.actor.typed._
-import akka.actor.typed.scaladsl.Actor
+import akka.actor.typed.scaladsl.Behaviors
 import java.net.URL
 import java.time.Instant
 
@@ -17,7 +17,7 @@ case class FeedHandler(feedURL: URL) {
   import FeedHandler._
 
   def getNewEntriesSince(lastPoll: Instant): Behavior[Command] =
-    Actor.immutable { case (ctx, GetNewEntries(replyTo)) ⇒
+    Behaviors.immutable { case (ctx, GetNewEntries(replyTo)) ⇒
       ctx.system.log.debug("Fetching and parsing feed {}", feedURL)
       val pollTime = Instant.now
 

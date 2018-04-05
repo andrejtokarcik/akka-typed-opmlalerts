@@ -1,6 +1,6 @@
 package opmlalerts
 
-import akka.event.LoggingAdapter
+import akka.actor.typed.Logger
 import com.rometools.opml.feed.opml.{ Opml ⇒ RomeOPML, Outline ⇒ RomeOutline }
 import com.rometools.rome.feed.synd.{ SyndEntry ⇒ RomeEntry }
 import com.rometools.rome.io.{ SyndFeedInput, WireFeedInput, XmlReader }
@@ -27,7 +27,7 @@ object Parser {
   def quote[T](o: Option[T]) = o map (x ⇒ s"'$x'") getOrElse "<unspecified>"
 }
 
-case class Parser(log: LoggingAdapter) {
+case class Parser(log: Logger) {
   import Parser._
 
   def parseOPML(opmlPath: Path): Map[URL, FeedInfo] = this.OPML(opmlPath).parse()
@@ -118,7 +118,7 @@ case class Parser(log: LoggingAdapter) {
         }
       }
     }
-    
+
     case class Entry(entry: RomeEntry) {
 
       lazy val titleAttr = Option(entry.getTitle)

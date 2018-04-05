@@ -33,29 +33,28 @@ sealed trait CommonSpec extends WordSpecLike with Matchers with BeforeAndAfterAl
 trait CommonSyncSpec extends CommonSpec
 
 trait CommonAsyncSpec extends CommonSpec {
-  self: TestKit ⇒
-  override protected def afterAll(): Unit = shutdown()
+  self: ActorTestKit ⇒
+  override protected def afterAll(): Unit = shutdownTestKit()
 }
 
-object CommonTestKit {
+abstract class CommonTestKit extends ActorTestKit with CommonAsyncSpec {
+
   // NOTE: Although the `ActorContextSpec` suite does use `typed.loggers`,
   // the option does not seem to be taken into account and the old-style
   // `loggers` must be specified instead.
-  val config = ConfigFactory.parseString(
+  override def config = ConfigFactory.parseString(
     """|akka {
        |  loglevel = WARNING
        |  loggers = ["akka.testkit.TestEventListener"]
        |}""".stripMargin)
-}
 
-abstract class CommonTestKit extends TestKit(CommonTestKit.config) with CommonAsyncSpec {
-  implicit lazy val untypedSystem = system.toUntyped 
+  implicit lazy val untypedSystem = system.toUntyped
 
   def expectWarning[T](msg: String, num: Int = 1)(block: ⇒ T) = {
     val filter = EventFilter.warning(start = msg, occurrences = num)
     filterEvents(filter)(block)
   }
-  
+
   def expectWarningOfPattern[T](pattern: String, num: Int = 1)(block: ⇒ T) = {
     val filter = EventFilter.warning(pattern = pattern, occurrences = num)
     filterEvents(filter)(block)

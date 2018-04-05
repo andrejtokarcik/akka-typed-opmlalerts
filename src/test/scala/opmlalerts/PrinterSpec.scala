@@ -13,12 +13,12 @@ sealed trait PrinterSpec
 
 object PrinterSyncSpec {
   val screenWidth = Some(5)
-  val testkit = BehaviorTestkit(printOnConsole(screenWidth, register = false))
+  val testKit = BehaviorTestKit(printOnConsole(screenWidth, register = false))
 
   def gatherOutput(msg: PrintMatch) = {
     val stream = new ByteArrayOutputStream()
     Console.withOut(stream) {
-      testkit.run(msg)
+      testKit.run(msg)
     }
     fansi.Str(stream.toString).plainText
   }
